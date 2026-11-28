@@ -1183,6 +1183,67 @@ class CandidateDifferentialTests(unittest.TestCase):
                 self.assertEqual(pd.state, pd_before)
 
 
+    def test_p_d_w05_malformed_expected_participant_container_is_rejected_atomically(self):
+        pa_context = ADeadlineContext(
+            (
+                AParticipant("cpu", Fraction(0), Fraction(100)),
+                AParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            ["cpu", "vdp"],
+        )
+        pd_context = AgendaContext(
+            (
+                AgendaParticipant("cpu", Fraction(0), Fraction(100)),
+                AgendaParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            ["cpu", "vdp"],
+        )
+        pa_before = ADeadlineBook()
+        pd_before = AgendaState()
+        pa = p_a_publish_deadline(
+            pa_before, pa_context, owner="cpu", identity="w05-invalid-expected",
+            generation=0, at_common=Fraction(10), effect_id="effect",
+        )
+        pd = p_d_publish_with_context(
+            pd_before, pd_context, owner="cpu", identity="w05-invalid-expected",
+            generation=0, at_common=Fraction(10), effect_id="effect",
+        )
+        self.assertEqual(pa.code.value, "InvalidInput")
+        self.assertEqual(pd.code.value, pa.code.value)
+        self.assertEqual(pa.book, pa_before)
+        self.assertEqual(pd.state, pd_before)
+
+
+    def test_p_d_w05_malformed_deadline_entries_are_rejected_atomically(self):
+        names = frozenset(("cpu", "vdp"))
+        pd_context = AgendaContext(
+            (
+                AgendaParticipant("cpu", Fraction(0), Fraction(100)),
+                AgendaParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        pa_before = ADeadlineBook(deadlines=(object(),))
+        pd_before = AgendaState(events=(object(),))
+        pa = p_a_close_watermark(pa_before, Fraction(10))
+        pd = p_d_close_watermark(pd_before, Fraction(10), pd_context)
+        self.assertEqual(pa.code.value, "InvalidInput")
+        self.assertEqual(pd.code.value, pa.code.value)
+        self.assertEqual(pa.book, pa_before)
+        self.assertEqual(pd.state, pd_before)
+
+
+    def test_p_d_w05_malformed_pending_cancellation_entries_are_rejected_atomically(self):
+        pa_before = ADeadlineBook(pending_cancellations=(object(),))
+        pd_before = AgendaState(pending_cancellations=(object(),))
+        pa = p_a_arbitrate_cancellations(pa_before)
+        pd = p_d_arbitrate_cancellations(pd_before)
+        self.assertEqual(pa.code.value, "InvalidInput")
+        self.assertEqual(pd.code.value, pa.code.value)
+        self.assertEqual(pa.book, pa_before)
+        self.assertEqual(pd.state, pd_before)
+
+
     def test_p_d_w05_generation_replacement_preserves_successor_microstep(self):
         names = frozenset(("cpu", "vdp"))
         pa_context = ADeadlineContext(
