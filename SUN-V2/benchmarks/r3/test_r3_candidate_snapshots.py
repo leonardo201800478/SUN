@@ -7,7 +7,7 @@ from dataclasses import replace
 from fractions import Fraction
 
 from p_d_discrete_agenda import (
-    AgendaContext, AgendaParticipant, AgendaState,
+    AgendaContext, AgendaObligation, AgendaParticipant, AgendaState,
     arbitrate_cancellations as pd_arbitrate_cancellations,
     close_watermark as pd_close_watermark,
     publish_with_context as pd_publish_with_context,
@@ -181,21 +181,54 @@ class CandidateSnapshotTests(unittest.TestCase):
             "P-D", state, profile="SMS-NTSC",
             model_version="P-D-R3-W09-1", input_cursor=3,
         ).artifact
-        context = AgendaContext(
-            (
-                AgendaParticipant("cpu", Fraction(0), Fraction(100)),
-                AgendaParticipant("vdp", Fraction(0), Fraction(100)),
-            ),
-            frozenset(("cpu", "vdp")),
-            Fraction(9),
-        )
+        close_arguments = {
+            "target_common": 10,
+            "participants": [
+                {"identity": "cpu", "progress_common": 0, "safe_horizon_common": 100},
+                {"identity": "vdp", "progress_common": 0, "safe_horizon_common": 100},
+            ],
+            "expected_participants": ["cpu", "vdp"],
+            "watermark_common": 9,
+            "obligations": [
+                {
+                    "identity": "resolved-before",
+                    "owner": "cpu",
+                    "at_common": 8,
+                    "resolved": True,
+                    "commutative": False,
+                },
+            ],
+        }
+
+        def context_from_arguments(arguments):
+            participants = tuple(
+                AgendaParticipant(
+                    item["identity"], Fraction(item["progress_common"]),
+                    Fraction(item["safe_horizon_common"]),
+                )
+                for item in arguments["participants"]
+            )
+            obligations = tuple(
+                AgendaObligation(
+                    item["identity"], item["owner"], Fraction(item["at_common"]),
+                    item["resolved"], item["commutative"],
+                )
+                for item in arguments["obligations"]
+            )
+            return AgendaContext(
+                participants,
+                frozenset(arguments["expected_participants"]),
+                Fraction(arguments["watermark_common"]),
+                obligations,
+            )
 
         def apply(current, operation, arguments):
             if operation == "arbitrate":
                 result = pd_arbitrate_cancellations(current)
             elif operation == "close":
                 result = pd_close_watermark(
-                    current, arguments["target_common"], context
+                    current, Fraction(arguments["target_common"]),
+                    context_from_arguments(arguments),
                 )
             else:
                 raise ValueError("unknown P-D replay operation")
@@ -203,10 +236,11 @@ class CandidateSnapshotTests(unittest.TestCase):
                 raise ValueError(result.detail or result.code.value)
             return result.state
 
+        context = context_from_arguments(close_arguments)
         expected = pd_arbitrate_cancellations(state).state
         expected = pd_close_watermark(expected, Fraction(10), context).state
         events = (
-            make_replay_event(5, "close", {"target_common": 10}),
+            make_replay_event(5, "close", close_arguments),
             make_replay_event(4, "arbitrate", {}),
         )
         replayed = replay_from_snapshot(
