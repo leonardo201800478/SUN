@@ -415,3 +415,13 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 - Nova validação após a cobertura de predecessor Scheduled: CI #46183873117 SUCCESS, candidata SHA `6949b074096bad237cf4413ad75fc5762a6d9218`. R2 258/258 Linux e Windows; R3 303/303 Linux e Windows; corpus emitter 202/202 por OS; canonical 135 fixtures / 1.525 cuts e replayable 30 fixtures / 143 operações com digest idêntico entre Linux/Windows; mutation checks R2 e Rust quality/unit regression PASS. Jobs de produção/hardware SKIPPED. A tentativa anterior SHA `513e825c9f0464dc19cfa7e9ddf16c1038ca32d3` falhou por erro no helper de teste R2 (argumento `at_common` duplicado), corrigido na candidata atual.
 - O crosswalk foi atualizado em `R3_FUP01_W05_TRACEABILITY.md`: inventário R2-T06 agora tem 80 métodos; P-D não representa explicitamente `Dispatched` ou `Failed` e contém `Superseded` candidato-local. Esses estados permanecem NOT COMPARABLE/NOT REPRESENTED, sem mapeamento artificial.
 - FUP-01 continua PARCIAL; R3 continua em andamento. Nenhuma aprovação R4/R5, merge ou implementação de produção foi realizada.
+
+
+### FUP-01 — extensão da cobertura estrutural W05 (28/11/2026)
+
+- A PR #1290 adicionou diferencial para owner vazio, participant identity duplicada, monotonicidade de geração após cancelamento terminal e orçamento de microstep em livro pré-construído.
+- O CI #46184104289 validou o SHA `3cd5d1dafc79e0a90e7549c1ec50eaa188983aad`: R2 258/258 Linux e Windows; R3 305/305 Linux e Windows; corpus emitter 202/202 por OS; corpus canônico 135 fixtures / 1.525 cuts e replayable 30 fixtures / 143 operações, ambos byte-identical Linux/Windows; mutation checks R2 e Rust quality/unit regression PASS. Jobs de produção/hardware SKIPPED.
+- O commit seguinte `57d44291115a243bf3c67d78c978148adb1dd141` adicionou teste diferencial para microstep acima do limite em livro pré-construído. Nenhum workflow run foi encontrado associado a esse SHA no momento do registro; esse teste permanece NOT RUN e o HEAD não está integralmente validado.
+- `publication_rejects_empty_profile_without_mutation` foi classificado como NOT COMPARABLE: o perfil existe no R2, mas não é representado nos contextos temporais P-A/P-D.
+- O crosswalk registra ainda que P-D `claim_next()` pode produzir `Claimed` sem W fechado e `complete()` transita diretamente de `Claimed` para `Completed`. Isso não é equivalente ao caminho R2/P-A `close_watermark -> dispatch -> complete`; manter como abstração candidate-local/não comparável, sem inferir equivalência.
+- FUP-01 permanece PARCIAL. Não fechar R3, R4 ou R5 com base nesses resultados.
