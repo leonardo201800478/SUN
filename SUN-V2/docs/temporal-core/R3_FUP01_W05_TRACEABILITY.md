@@ -115,6 +115,14 @@ Candidate change on PR #1290 HEAD 6aff7eef55ca7aa9b35eca83e58f841512c7759b:
 - Validation result mapping preserves InvariantViolation separately from malformed-input InvalidInput across all ten P-D operation entry points using the shared validator.
 - Differential test test_p_d_w05_claimed_and_processed_states_require_closed_watermark_on_every_operation covers preconstructed lifecycle states at W absent and W=9 with D=10 across contextual publish, cancel request, cancellation arbitration, watermark close, dispatch, completion and contextual replacement. Every operation must reject atomically with InvariantViolation.
 - Candidate-local unwatermarked claim_next() remains deliberately non-comparable; its subsequent dispatch/completion now report the global lifecycle invariant failure rather than treating the state as a valid processed lifecycle.
-- CI #46187809471 is IN PROGRESS at the time of this note. No PASS is claimed until the complete Linux/Windows run finishes on the exact HEAD.
+- CI #46187809471 FAILED on HEAD 6aff7eef55ca7aa9b35eca83e58f841512c7759b. The run exposed that the generic validator result for processed lifecycle states was still being mapped as InvalidInput, and that globally rejecting candidate-local Claimed records broke existing exploratory P-D/W07 cases. This SHA is not validated.
 
 P-D still has no Failed status or partial-effect ledger, so R2's Failed-state row is not claimed as covered. This work does not alter R2 and does not infer hardware timing.
+
+
+### Correção do candidato de invariantes — 28/11/2026
+
+- A fronteira foi refinada para não invalidar o claim local experimental: apenas Dispatched/Completed são invariantes globais no validador P-D; Claimed sem W continua candidate-local e não pode avançar para dispatch. Claimed com W retrograde permanece rejeitado pelo guard estrutural existente, mas sua correspondência com o caso R2 não é declarada direta enquanto o estado candidate-local não for distinguível.
+- O código de validação pré-existente para Dispatched/Completed foi alterado para preservar explicitamente InvariantViolation, em vez de InvalidInput; a duplicação introduzida no primeiro patch foi removida.
+- Novo HEAD de código: 6a0ed8d1fc3da272dd9d467f0d1affdff837620d. CI #46188000773 QUEUED/PENDING na última consulta; aguardar conclusão Linux/Windows antes de registrar PASS.
+- FUP-01 segue PARCIAL. R2/R1 permanecem intocados; nenhum código de produção CHRONOS/V2 foi criado.
