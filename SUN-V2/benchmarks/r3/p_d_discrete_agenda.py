@@ -79,6 +79,7 @@ class AgendaState:
     events: tuple[AgendaEvent, ...] = ()
     constraints: tuple[AgendaConstraint, ...] = ()
     max_events: int = 4096
+    watermark_common: Fraction | None = None
 
 
 @dataclass(frozen=True)
@@ -87,6 +88,7 @@ class AgendaResult:
     code: AgendaCode
     event: AgendaEvent | None = None
     detail: str = ""
+    claimed: tuple[tuple[str, int], ...] = ()
 
 
 def _exact(value: object) -> bool:
@@ -152,7 +154,10 @@ def _replace(state: AgendaState, updated: AgendaEvent) -> AgendaState:
         (updated.identity, updated.generation) else item
         for item in state.events
     )
-    return AgendaState(state.heap, events, state.constraints, state.max_events)
+    return AgendaState(
+        state.heap, events, state.constraints, state.max_events,
+        state.watermark_common,
+    )
 
 
 def _validate(state: object) -> str | None:
@@ -161,6 +166,8 @@ def _validate(state: object) -> str | None:
         return "invalid agenda state"
     if type(state.max_events) is not int or state.max_events <= 0:
         return "max_events must be a positive integer"
+    if state.watermark_common is not None and not _exact(state.watermark_common):
+        return "watermark must be an exact coordinate"
     if type(state.heap) is not tuple or type(state.events) is not tuple:
         return "agenda collections must be immutable tuples"
     keys: set[tuple[str, int]] = set()
@@ -195,6 +202,11 @@ def _validate(state: object) -> str | None:
             event.generation, max_generation.get(event.identity, -1)
         )
         if event.status is EventStatus.SCHEDULED:
+            if (
+                state.watermark_common is not None
+                and event.at_common <= state.watermark_common
+            ):
+                return "scheduled event is at or behind the closed watermark"
             scheduled.add(_key(event))
     if len(state.events) > state.max_events:
         return "agenda capacity exceeded"
@@ -285,6 +297,11 @@ def publish(
         ))
     ):
         return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="invalid publish descriptor")
+    if (
+        state.watermark_common is not None
+        and Fraction(at_common) <= state.watermark_common
+    ):
+        return AgendaResult(state, AgendaCode.LATE_INPUT, detail="deadline is at or behind the closed watermark")
     if len(state.events) >= state.max_events:
         return AgendaResult(state, AgendaCode.RESOURCE_EXHAUSTED, detail="agenda capacity exhausted")
     prior = [item for item in state.events if item.identity == identity]
@@ -309,7 +326,10 @@ def publish(
     )
     events.append(event)
     heapq.heappush(heap, _key(event))
-    updated = AgendaState(tuple(heap), tuple(events), state.constraints, state.max_events)
+    updated = AgendaState(
+        tuple(heap), tuple(events), state.constraints, state.max_events,
+        state.watermark_common,
+    )
     return AgendaResult(updated, AgendaCode.ACCEPTED, event)
 
 
@@ -334,7 +354,10 @@ def cancel(state: AgendaState, identity: str, generation: int) -> AgendaResult:
     heap = list(updated.heap)
     heap.remove(_key(event))
     heapq.heapify(heap)
-    updated = AgendaState(tuple(heap), updated.events, updated.constraints, updated.max_events)
+    updated = AgendaState(
+        tuple(heap), updated.events, updated.constraints, updated.max_events,
+        updated.watermark_common,
+    )
     return AgendaResult(updated, AgendaCode.CANCELLED, updated_event)
 
 
@@ -403,6 +426,8 @@ def claim_next(state: AgendaState, target_common: int | Fraction) -> AgendaResul
     if not _exact(target_common):
         return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="target must be exact")
     target = Fraction(target_common)
+    if state.watermark_common is not None and target < state.watermark_common:
+        return AgendaResult(state, AgendaCode.LATE_INPUT, detail="target is behind the closed watermark")
     if state.heap and target < state.heap[0][0]:
         return AgendaResult(state, AgendaCode.BLOCKED, detail="no event due at target")
     if not state.heap or state.heap[0][0] > target:
@@ -435,8 +460,73 @@ def claim_next(state: AgendaState, target_common: int | Fraction) -> AgendaResul
         (selected.identity, selected.generation) else item
         for item in state.events
     )
-    updated = AgendaState(tuple(heap), events, state.constraints, state.max_events)
+    updated = AgendaState(
+        tuple(heap), events, state.constraints, state.max_events,
+        state.watermark_common,
+    )
     return AgendaResult(updated, AgendaCode.CLAIMED, claimed)
+
+
+def close_watermark(state: AgendaState, target_common: int | Fraction) -> AgendaResult:
+    """Atomically claim every due event and close one exact common-time frontier."""
+    invalid = _validate(state)
+    if invalid is not None:
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail=invalid)
+    if not _exact(target_common):
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="watermark target must be exact")
+    target = Fraction(target_common)
+    if state.watermark_common is not None and target < state.watermark_common:
+        return AgendaResult(state, AgendaCode.LATE_INPUT, detail="watermark cannot regress")
+
+    heap = list(state.heap)
+    by_key = {
+        (item.identity, item.generation): item
+        for item in state.events
+    }
+    claimed_events: dict[tuple[str, int], AgendaEvent] = {}
+    claimed_order: list[tuple[str, int]] = []
+    while heap and heap[0][0] <= target:
+        earliest = heap[0][0]
+        keys = []
+        while heap and heap[0][0] == earliest:
+            keys.append(heapq.heappop(heap))
+        group = tuple(
+            by_key.get((identity, generation))
+            for _, identity, generation in keys
+        )
+        if any(item is None for item in group):
+            return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="heap references a missing event")
+        remaining = list(group)
+        while remaining:
+            selected = _select_same_instant(state, tuple(remaining))
+            if selected is None:
+                return AgendaResult(
+                    state, AgendaCode.INDETERMINATE,
+                    detail="same-instant event relation is UNKNOWN or cyclic",
+                )
+            claimed = AgendaEvent(
+                selected.identity, selected.generation, selected.owner,
+                selected.at_common, selected.effect_id, EventStatus.CLAIMED,
+                selected.microstep, selected.phase_order,
+                selected.phase_evidence, selected.phase_basis,
+            )
+            key = (selected.identity, selected.generation)
+            claimed_events[key] = claimed
+            claimed_order.append(key)
+            remaining.remove(selected)
+
+    events = tuple(
+        claimed_events.get((item.identity, item.generation), item)
+        for item in state.events
+    )
+    updated = AgendaState(
+        tuple(heap), events, state.constraints, state.max_events, target
+    )
+    return AgendaResult(
+        updated, AgendaCode.ACCEPTED,
+        detail="all due agenda events claimed before watermark close",
+        claimed=tuple(claimed_order),
+    )
 
 
 def complete(state: AgendaState, identity: str, generation: int) -> AgendaResult:
