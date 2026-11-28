@@ -8,6 +8,7 @@ from fractions import Fraction
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "verification" / "r2_reference"))
 sys.path.insert(0, str(ROOT / "benchmarks" / "r3"))
 
 from p_e_sync_on_demand import SyncDomain, SyncState  # noqa: E402
