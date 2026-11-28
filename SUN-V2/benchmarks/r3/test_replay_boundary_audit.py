@@ -64,6 +64,18 @@ class ReplayBoundaryAuditTests(unittest.TestCase):
         self.assertTrue(any("virtual_effects" in item for item in audit.not_comparable))
         self.assertEqual(r2_state, r2_replay_state())
 
+    def test_suffix_tuple_permutation_keeps_sequence_space_audit_stable(self):
+        artifact = candidate_artifact(cursor=3)
+        suffix = (
+            make_replay_event(5, "close", {}),
+            make_replay_event(4, "arbitrate", {}),
+        )
+        result = audit_candidate_replay_boundary(
+            artifact, suffix, r2_replay_state()
+        )
+        self.assertEqual(result.code, ReplayBoundaryCode.INCOMPARABLE)
+        self.assertEqual(result.audit.candidate_suffix_sequences, (4, 5))
+
     def test_profile_mismatch_is_reported_without_claiming_replay_equivalence(self):
         result = audit_candidate_replay_boundary(
             candidate_artifact(profile="SMS-NTSC"),
