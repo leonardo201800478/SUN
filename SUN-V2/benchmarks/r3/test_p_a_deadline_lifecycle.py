@@ -1155,5 +1155,169 @@ class PADeadlineLifecycleTests(unittest.TestCase):
         )
 
 
+    def test_cancel_frontier_rejects_non_exact_or_regressed_horizon_matches_r2(self):
+        initial = self.publish(
+            owner="cpu", identity="horizon-frontier", generation=0,
+            at_common=Fraction(10), effect_id="effect",
+        ).book
+        for horizon, expected_code in (
+            (0.5, ADeadlineCode.INVALID_INPUT),
+            (Fraction(-1), ADeadlineCode.INVARIANT_VIOLATION),
+            (Fraction(1), ADeadlineCode.INVARIANT_VIOLATION),
+        ):
+            with self.subTest(horizon=horizon):
+                context = ADeadlineContext(
+                    (
+                        AParticipant("cpu", Fraction(2), horizon),
+                        AParticipant("vdp", Fraction(2), Fraction(100)),
+                    ),
+                    frozenset({"cpu", "vdp"}),
+                )
+                actual = cancel_deadline(
+                    initial, context, owner="cpu",
+                    identity="horizon-frontier", generation=0,
+                    at_common=Fraction(4),
+                )
+                expected = r2_cancel_deadline(
+                    to_r2_book(initial), to_r2_context(context),
+                    owner="cpu", identity="horizon-frontier", generation=0,
+                    at_common=Fraction(4),
+                )
+                self.compare(actual, expected)
+                self.assertEqual(actual.code, expected_code)
+                self.assertEqual(actual.book, initial)
+
+    def test_publication_rejects_global_horizon_behind_watermark_matches_r2(self):
+        context = ADeadlineContext(
+            (
+                AParticipant("cpu", Fraction(0), Fraction(10)),
+                AParticipant("vdp", Fraction(0), Fraction(30)),
+            ),
+            frozenset({"cpu", "vdp"}),
+            watermark_common=Fraction(20),
+        )
+        book = ADeadlineBook(watermark_common=Fraction(20))
+        actual = publish_deadline(
+            book, context, owner="cpu", identity="global-horizon",
+            generation=0, at_common=Fraction(30), effect_id="effect",
+        )
+        expected = r2_publish_deadline(
+            to_r2_book(book), to_r2_context(context),
+            owner="cpu", identity="global-horizon",
+            generation=0, at_common=Fraction(30), effect_id="effect",
+        )
+        self.compare(actual, expected)
+        self.assertEqual(actual.code, ADeadlineCode.INVARIANT_VIOLATION)
+        self.assertEqual(actual.book, book)
+
+    def test_cancellation_rejects_global_horizon_behind_watermark_matches_r2(self):
+        initial = self.publish(
+            owner="cpu", identity="global-horizon-cancel", generation=0,
+            at_common=Fraction(30), effect_id="effect",
+        ).book
+        context = ADeadlineContext(
+            (
+                AParticipant("cpu", Fraction(0), Fraction(10)),
+                AParticipant("vdp", Fraction(0), Fraction(30)),
+            ),
+            frozenset({"cpu", "vdp"}),
+            watermark_common=Fraction(20),
+        )
+        book = replace(initial, watermark_common=Fraction(20))
+        actual = cancel_deadline(
+            book, context, owner="cpu", identity="global-horizon-cancel",
+            generation=0, at_common=Fraction(25),
+        )
+        expected = r2_cancel_deadline(
+            to_r2_book(book), to_r2_context(context),
+            owner="cpu", identity="global-horizon-cancel",
+            generation=0, at_common=Fraction(25),
+        )
+        self.compare(actual, expected)
+        self.assertEqual(actual.code, ADeadlineCode.INVARIANT_VIOLATION)
+        self.assertEqual(actual.book, book)
+
+    def test_known_horizon_violation_precedes_incomplete_participant_block_matches_r2(self):
+        initial = self.publish(
+            owner="cpu", identity="horizon-before-incomplete", generation=0,
+            at_common=Fraction(30), effect_id="effect",
+        ).book
+        context = ADeadlineContext(
+            (AParticipant("cpu", Fraction(0), Fraction(10)),),
+            frozenset({"cpu", "vdp"}),
+            watermark_common=Fraction(20),
+        )
+        book = replace(initial, watermark_common=Fraction(20))
+        actual = cancel_deadline(
+            book, context, owner="cpu", identity="horizon-before-incomplete",
+            generation=0, at_common=Fraction(25),
+        )
+        expected = r2_cancel_deadline(
+            to_r2_book(book), to_r2_context(context),
+            owner="cpu", identity="horizon-before-incomplete",
+            generation=0, at_common=Fraction(25),
+        )
+        self.compare(actual, expected)
+        self.assertEqual(actual.code, ADeadlineCode.INVARIANT_VIOLATION)
+        self.assertEqual(actual.book, book)
+
+    def test_deadline_admission_rejects_inconsistent_obligations_matches_r2(self):
+        for progress, watermark, obligation_at in (
+            (Fraction(0), Fraction(5), Fraction(5)),
+            (Fraction(6), None, Fraction(5)),
+        ):
+            with self.subTest(progress=progress, watermark=watermark):
+                initial_book = ADeadlineBook(watermark_common=watermark)
+                initial_context = ADeadlineContext(
+                    (AParticipant("cpu", Fraction(0), Fraction(100)),),
+                    frozenset({"cpu"}),
+                    watermark_common=watermark,
+                )
+                scheduled = self.publish(
+                    book=initial_book, context=initial_context,
+                    owner="cpu", identity="obligation-deadline",
+                    generation=0, at_common=Fraction(10), effect_id="effect",
+                ).book
+                inconsistent = ADeadlineContext(
+                    (AParticipant("cpu", progress, Fraction(100)),),
+                    frozenset({"cpu"}),
+                    obligations=(
+                        AObligation("pending", "cpu", obligation_at, resolved=False),
+                    ),
+                    watermark_common=watermark,
+                )
+                publication = publish_deadline(
+                    initial_book, inconsistent, owner="cpu",
+                    identity="new-deadline", generation=0,
+                    at_common=Fraction(12), effect_id="new-effect",
+                )
+                expected_publication = r2_publish_deadline(
+                    to_r2_book(initial_book), to_r2_context(inconsistent),
+                    owner="cpu", identity="new-deadline", generation=0,
+                    at_common=Fraction(12), effect_id="new-effect",
+                )
+                self.compare(publication, expected_publication)
+                self.assertEqual(
+                    publication.code, ADeadlineCode.INVARIANT_VIOLATION
+                )
+                self.assertEqual(publication.book, initial_book)
+
+                cancellation = cancel_deadline(
+                    scheduled, inconsistent, owner="cpu",
+                    identity="obligation-deadline", generation=0,
+                    at_common=Fraction(8),
+                )
+                expected_cancellation = r2_cancel_deadline(
+                    to_r2_book(scheduled), to_r2_context(inconsistent),
+                    owner="cpu", identity="obligation-deadline",
+                    generation=0, at_common=Fraction(8),
+                )
+                self.compare(cancellation, expected_cancellation)
+                self.assertEqual(
+                    cancellation.code, ADeadlineCode.INVARIANT_VIOLATION
+                )
+                self.assertEqual(cancellation.book, scheduled)
+
+
 if __name__ == "__main__":
     unittest.main()
