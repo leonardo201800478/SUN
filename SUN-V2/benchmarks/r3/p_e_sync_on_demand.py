@@ -281,34 +281,42 @@ def _dependency_order(first: SyncTransition, second: SyncTransition) -> PairRela
 def _closure(
     state: SyncState, requested: tuple[str, ...], target: Fraction
 ) -> tuple[set[str], set[str]] | None:
-    """Build the transitive domain/transition closure for one observation."""
-    domains = {item.identity: item for item in state.domains}
-    transitions = state._transition_by_id
+    """Compute only the requested domains and transitive causal predecessors."""
     selected_domains = set(requested)
     selected_transitions: set[str] = set()
-    changed = True
-    while changed:
-        changed = False
-        for owner in sorted(selected_domains):
-            for transition in state._transitions_by_owner.get(owner, ()):
-                if transition.at_common > target or transition.identity in selected_transitions:
-                    continue
-                selected_transitions.add(transition.identity)
-                changed = True
-                for dependency_id in transition.depends_on:
-                    dependency = transitions[dependency_id]
-                    if dependency.at_common > target:
-                        return None
-                    if dependency.identity not in selected_transitions:
-                        selected_transitions.add(dependency.identity)
-                        changed = True
-                    if dependency.owner not in selected_domains:
-                        selected_domains.add(dependency.owner)
-                        changed = True
-    if any(item not in domains for item in selected_domains):
-        return None
-    return selected_domains, selected_transitions
+    queue: list[SyncTransition] = []
 
+    def include_owner(owner: str) -> None:
+        for transition in sorted(
+            state._transitions_by_owner.get(owner, ()),
+            key=lambda item: (item.at_common, item.identity),
+        ):
+            if (
+                transition.at_common <= target
+                and transition.identity not in selected_transitions
+            ):
+                selected_transitions.add(transition.identity)
+                queue.append(transition)
+
+    for owner in sorted(selected_domains):
+        include_owner(owner)
+
+    cursor = 0
+    while cursor < len(queue):
+        transition = queue[cursor]
+        cursor += 1
+        for dependency_id in transition.depends_on:
+            dependency = state._transition_by_id[dependency_id]
+            if dependency.at_common > target:
+                return None
+            if dependency.owner not in selected_domains:
+                selected_domains.add(dependency.owner)
+                include_owner(dependency.owner)
+            if dependency.identity not in selected_transitions:
+                selected_transitions.add(dependency.identity)
+                queue.append(dependency)
+
+    return selected_domains, selected_transitions
 
 def _choose(
     state: SyncState, group: tuple[SyncTransition, ...]
@@ -411,14 +419,15 @@ def synchronize(
     frontier = min(target, *(domains[item].safe_horizon for item in selected_domains))
     if any(frontier < domains[item].progress for item in selected_domains):
         return SyncResult(state, SyncCode.INVALID_INPUT, detail="causal safe horizon regresses an existing participant")
-    pending = [
-        item
-        for owner in sorted(selected_domains)
-        for item in state._transitions_by_owner.get(owner, ())
-        if item.identity in selected_transitions
-        and item.identity not in state.observed
-        and item.at_common <= frontier
-    ]
+    pending = sorted(
+        (
+            state._transition_by_id[identity]
+            for identity in selected_transitions
+            if identity not in state.observed
+            and state._transition_by_id[identity].at_common <= frontier
+        ),
+        key=lambda item: (item.at_common, item.identity),
+    )
     observed = list(state.observed)
     while pending:
         earliest = min(item.at_common for item in pending)
