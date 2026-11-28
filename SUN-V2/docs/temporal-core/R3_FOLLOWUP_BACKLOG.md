@@ -467,5 +467,13 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 - R2 test_claimed_and_processed_deadlines_require_closed_watermark exige W fechado cobrindo D para Claimed, Dispatched, Completed e Failed. R2 test_scheduled_deadline_behind_closed_watermark_is_rejected_by_all_operations exige rejeição atômica nas oito operações aplicáveis a uma agenda inconsistente.
 - Auditoria encontrou que P-D validava Scheduled <= W globalmente, mas não validava Claimed/Dispatched/Completed sem W ou além de W em todas as operações. Corrigido no HEAD 6aff7eef55ca7aa9b35eca83e58f841512c7759b com validação central e preservação do código InvariantViolation.
 - Teste diferencial novo: test_p_d_w05_claimed_and_processed_states_require_closed_watermark_on_every_operation; inclui W ausente e W=9 para D=10, cobrindo publish/cancel/arbitrate/close/dispatch/complete/replace e atomicidade.
-- CI #46187809471 ainda IN PROGRESS no momento da atualização; não considerar validado até SUCCESS Linux/Windows no SHA exato.
+- CI #46187809471 FAILED no SHA 6aff7eef55ca7aa9b35eca83e58f841512c7759b; a primeira versão classificava o erro de lifecycle como InvalidInput e afetava claims candidate-local existentes. Não considerar validado.
 - Failed continua sem representação em P-D; não foi adicionado estado artificial sem ledger/recuperação. FUP-01 continua PARCIAL.
+
+
+### FUP-01 — correção da fronteira candidate-local (28/11/2026)
+
+- A validação global foi limitada a Dispatched/Completed sem W ou além de W. Claimed sem W continua sendo estado candidate-local de claim_next(), não equivalente ao claim atômico de close_watermark(); dispatch o rejeita e completion continua inválida antes de dispatch.
+- O código de erro da violação global foi corrigido para InvariantViolation no validador compartilhado, sem alterar a regra Scheduled <= W.
+- Novo candidato: HEAD 6a0ed8d1fc3da272dd9d467f0d1affdff837620d; CI #46188000773 ainda QUEUED/PENDING na última consulta.
+- FUP-01 permanece PARCIAL até CI e crosswalk restantes; Failed/efeitos parciais não representados.
