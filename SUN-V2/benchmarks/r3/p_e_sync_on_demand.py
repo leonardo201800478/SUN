@@ -270,17 +270,35 @@ def _closure(
 def _choose(
     state: SyncState, group: tuple[SyncTransition, ...]
 ) -> SyncTransition | None:
-    """Choose a minimal same-instant transition only from proven pair relations."""
+    """Choose a minimal same-instant transition using one indexed relation view."""
     if len(group) == 1:
         return group[0]
     incoming = {item.identity: 0 for item in group}
+    by_id = {item.identity: item for item in group}
+    relation_index = {
+        frozenset((item.first_id, item.second_id)): item
+        for item in state.constraints
+    }
+
+    def declared_relation(first_id: str, second_id: str) -> PairRelation:
+        item = relation_index.get(frozenset((first_id, second_id)))
+        if item is None:
+            return PairRelation.UNKNOWN
+        if (item.first_id, item.second_id) == (first_id, second_id):
+            return item.relation
+        if item.relation is PairRelation.FIRST_BEFORE_SECOND:
+            return PairRelation.SECOND_BEFORE_FIRST
+        if item.relation is PairRelation.SECOND_BEFORE_FIRST:
+            return PairRelation.FIRST_BEFORE_SECOND
+        return item.relation
+
     ids = [item.identity for item in group]
     for index, first_id in enumerate(ids):
         for second_id in ids[index + 1:]:
-            first = next(item for item in group if item.identity == first_id)
-            second = next(item for item in group if item.identity == second_id)
+            first = by_id[first_id]
+            second = by_id[second_id]
             relation = _dependency_order(first, second)
-            declared = _relation(state, first_id, second_id)
+            declared = declared_relation(first_id, second_id)
             if relation is PairRelation.UNKNOWN:
                 relation = declared
             elif declared is not PairRelation.UNKNOWN and declared is not relation:
@@ -305,14 +323,16 @@ def _choose(
     if not ready:
         return None
     if len(ready) > 1:
-        for index, first in enumerate(ready):
-            for second in ready[index + 1:]:
-                if _dependency_order(
-                    next(item for item in group if item.identity == first),
-                    next(item for item in group if item.identity == second),
-                ) is PairRelation.UNKNOWN and _relation(state, first, second) is not PairRelation.COMMUTATIVE:
+        for index, first_id in enumerate(ready):
+            for second_id in ready[index + 1:]:
+                if (
+                    _dependency_order(by_id[first_id], by_id[second_id])
+                    is PairRelation.UNKNOWN
+                    and declared_relation(first_id, second_id)
+                    is not PairRelation.COMMUTATIVE
+                ):
                     return None
-    return next(item for item in group if item.identity == ready[0])
+    return by_id[ready[0]]
 
 
 def synchronize(
