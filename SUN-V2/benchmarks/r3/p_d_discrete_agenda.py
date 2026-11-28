@@ -437,20 +437,25 @@ def _validate(state: object) -> str | None:
             )
         ):
             return "pending cancellation and event record disagree"
-    claimed_statuses = (
-        EventStatus.CLAIMED,
+    processed_statuses = (
         EventStatus.DISPATCHED,
         EventStatus.COMPLETED,
     )
     if any(
-        event.status in claimed_statuses
+        event.status in processed_statuses
         and (
             state.watermark_common is None
             or event.at_common > state.watermark_common
         )
         for event in state.events
     ):
-        return "claimed or processed event is beyond the closed watermark"
+        return "dispatched or completed event is beyond the closed watermark"
+    if state.watermark_common is not None and any(
+        event.status is EventStatus.CLAIMED
+        and event.at_common > state.watermark_common
+        for event in state.events
+    ):
+        return "claimed event is beyond the closed watermark"
     active_statuses = {
         EventStatus.SCHEDULED,
         EventStatus.CANCEL_PENDING,
@@ -1161,6 +1166,14 @@ def dispatch_event(state: AgendaState, identity: str, generation: int) -> Agenda
         return AgendaResult(state, AgendaCode.STALE_IGNORED, detail="stale identity or generation ignored")
     if event.status in (EventStatus.DISPATCHED, EventStatus.COMPLETED):
         return AgendaResult(state, AgendaCode.ACCEPTED, event, "dispatch already recorded; no repeated effect")
+    if event.status is EventStatus.CLAIMED and (
+        state.watermark_common is None
+        or event.at_common > state.watermark_common
+    ):
+        return AgendaResult(
+            state, AgendaCode.INVARIANT_VIOLATION, event,
+            "dispatch requires the event to be claimed under a closed watermark",
+        )
     if event.status is not EventStatus.CLAIMED:
         return AgendaResult(state, AgendaCode.STALE_IGNORED, event, "event is not claimed; no effect dispatched")
     dispatched = AgendaEvent(
