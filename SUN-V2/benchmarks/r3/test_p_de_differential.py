@@ -801,5 +801,123 @@ class CandidateDifferentialTests(unittest.TestCase):
         self.assertEqual(pd_invalid.state, pd_first.state)
 
 
+    def test_p_d_w05_generation_replacement_rejects_invalid_cancellation_frontiers_atomically(self):
+        names = frozenset(("cpu", "vdp"))
+        pa_context = ADeadlineContext(
+            (
+                AParticipant("cpu", Fraction(0), Fraction(100), Fraction(1), Fraction(0)),
+                AParticipant("vdp", Fraction(0), Fraction(100), Fraction(1), Fraction(0)),
+            ),
+            names,
+        )
+        pd_context = AgendaContext(
+            (
+                AgendaParticipant("cpu", Fraction(0), Fraction(100)),
+                AgendaParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        pa_first = p_a_publish_deadline(
+            ADeadlineBook(), pa_context, owner="cpu", identity="w05-replace-frontier",
+            generation=0, at_common=Fraction(10), effect_id="old-effect",
+        )
+        pd_first = p_d_publish_with_context(
+            AgendaState(), pd_context, owner="cpu", identity="w05-replace-frontier",
+            generation=0, at_common=Fraction(10), effect_id="old-effect",
+        )
+        self.assertEqual(_p_a_w05_state(pa_first.book), _p_d_w05_state(pd_first.state))
+
+        for cancel_at, expected_code in (
+            (Fraction(0), "LateInput"),
+            (Fraction(10), "IndeterminateCausalOrder"),
+            (Fraction(11), "LateInput"),
+        ):
+            with self.subTest(cancel_at=cancel_at):
+                pa = p_a_replace_deadline(
+                    pa_first.book, pa_context, owner="cpu", identity="w05-replace-frontier",
+                    generation=0, cancel_at=cancel_at, new_generation=1,
+                    new_at_common=Fraction(20), new_effect_id="new-effect",
+                )
+                pd = p_d_replace_with_context(
+                    pd_first.state, pd_context, owner="cpu", identity="w05-replace-frontier",
+                    generation=0, cancel_at=cancel_at, new_generation=1,
+                    new_at_common=Fraction(20), new_effect_id="new-effect",
+                )
+                self.assertEqual(pa.code.value, expected_code)
+                self.assertEqual(pd.code.value, pa.code.value)
+                self.assertEqual(_p_a_w05_state(pa.book), _p_d_w05_state(pd.state))
+                self.assertEqual(pa.book, pa_first.book)
+                self.assertEqual(pd.state, pd_first.state)
+
+        pa_owner = p_a_replace_deadline(
+            pa_first.book, pa_context, owner="vdp", identity="w05-replace-frontier",
+            generation=0, cancel_at=Fraction(5), new_generation=1,
+            new_at_common=Fraction(20), new_effect_id="new-effect",
+        )
+        pd_owner = p_d_replace_with_context(
+            pd_first.state, pd_context, owner="vdp", identity="w05-replace-frontier",
+            generation=0, cancel_at=Fraction(5), new_generation=1,
+            new_at_common=Fraction(20), new_effect_id="new-effect",
+        )
+        self.assertEqual(pa_owner.code.value, "InvalidInput")
+        self.assertEqual(pd_owner.code.value, pa_owner.code.value)
+        self.assertEqual(_p_a_w05_state(pa_owner.book), _p_d_w05_state(pd_owner.state))
+        self.assertEqual(pa_owner.book, pa_first.book)
+        self.assertEqual(pd_owner.state, pd_first.state)
+
+        incomplete_pa_context = ADeadlineContext(
+            (AParticipant("cpu", Fraction(0), Fraction(100)),), names
+        )
+        incomplete_pd_context = AgendaContext(
+            (AgendaParticipant("cpu", Fraction(0), Fraction(100)),), names
+        )
+        pa_incomplete = p_a_replace_deadline(
+            pa_first.book, incomplete_pa_context, owner="cpu",
+            identity="w05-replace-frontier", generation=0,
+            cancel_at=Fraction(5), new_generation=1,
+            new_at_common=Fraction(20), new_effect_id="new-effect",
+        )
+        pd_incomplete = p_d_replace_with_context(
+            pd_first.state, incomplete_pd_context, owner="cpu",
+            identity="w05-replace-frontier", generation=0,
+            cancel_at=Fraction(5), new_generation=1,
+            new_at_common=Fraction(20), new_effect_id="new-effect",
+        )
+        self.assertEqual(pa_incomplete.code.value, "Blocked")
+        self.assertEqual(pd_incomplete.code.value, pa_incomplete.code.value)
+        self.assertEqual(_p_a_w05_state(pa_incomplete.book), _p_d_w05_state(pd_incomplete.state))
+        self.assertEqual(pa_incomplete.book, pa_first.book)
+        self.assertEqual(pd_incomplete.state, pd_first.state)
+
+        pa_success = p_a_replace_deadline(
+            pa_first.book, pa_context, owner="cpu", identity="w05-replace-frontier",
+            generation=0, cancel_at=Fraction(5), new_generation=1,
+            new_at_common=Fraction(20), new_effect_id="new-effect",
+        )
+        pd_success = p_d_replace_with_context(
+            pd_first.state, pd_context, owner="cpu", identity="w05-replace-frontier",
+            generation=0, cancel_at=Fraction(5), new_generation=1,
+            new_at_common=Fraction(20), new_effect_id="new-effect",
+        )
+        pa_non_monotonic = p_a_replace_deadline(
+            pa_success.book, pa_context, owner="cpu", identity="w05-replace-frontier",
+            generation=0, cancel_at=Fraction(5), new_generation=1,
+            new_at_common=Fraction(30), new_effect_id="third-effect",
+        )
+        pd_non_monotonic = p_d_replace_with_context(
+            pd_success.state, pd_context, owner="cpu", identity="w05-replace-frontier",
+            generation=0, cancel_at=Fraction(5), new_generation=1,
+            new_at_common=Fraction(30), new_effect_id="third-effect",
+        )
+        self.assertEqual(pa_non_monotonic.code.value, "InvalidInput")
+        self.assertEqual(pd_non_monotonic.code.value, pa_non_monotonic.code.value)
+        self.assertEqual(
+            _p_a_w05_state(pa_non_monotonic.book),
+            _p_d_w05_state(pd_non_monotonic.state),
+        )
+        self.assertEqual(pa_non_monotonic.book, pa_success.book)
+        self.assertEqual(pd_non_monotonic.state, pd_success.state)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
