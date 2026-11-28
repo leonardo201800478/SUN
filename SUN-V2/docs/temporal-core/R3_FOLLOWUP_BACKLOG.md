@@ -348,3 +348,18 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 - O finding P2 de validação do descritor da PR #1293 foi corrigido, validado e respondido; thread de revisão resolvida.
 
 **Situação global:** FUP-01, FUP-02 e FUP-03 continuam PARCIAIS, com limites e lacunas identificados. FUP-04 permanece tecnicamente concluído com limites explícitos. FUP-05, R4 e R5 continuam bloqueados. Nenhum merge foi executado e nenhum código de produção CHRONOS/V2 foi criado.
+
+
+### Atualização final FUP-01 — fronteira racional exata (28/11/2026)
+
+- A matriz `R3_FUP01_W05_TRACEABILITY.md` foi atualizada para enumerar explicitamente os 78 métodos R2-T06 (17 publication/admission + 13 cancellation frontier + 12 C/D + 5 replacement + 3 watermark/arbitration + 4 ties + 6 microsteps + 9 structural + 9 lifecycle).
+- Adicionado o 11º teste diferencial W05: `test_cancel_frontier_accepts_exact_rational_participant_conversions_matches_r2`. Ele compara cancelamento com conversões racionais exatas em dois participantes e verifica aceitação/estado pendente contra R2.
+- HEAD final PR #1290: `8ad22e3cdf8d4c97f4c557f061a9fd4e8f96013e`; CI #46175104624 [SUCCESS](https://github.com/leonardo201800478/SUN/actions/runs/46175104624): R3 294 testes Linux/Windows; R2 independente Linux; R2 Python Windows; equivalência de corpora; Rust quality/unit regression PASS.
+- Canonical P-A report: 130 fixtures / 1.510 cuts (1.499 differential + 11 property cuts); replayable corpus: 30 fixtures / 143 operações/cortes.
+- Matriz atualizada no commit `4b4e9476c77a773dfaceb08c96d4fbd304858435`. **FUP-01 permanece PARCIAL** devido aos gaps estruturais/lifecycle listados na matriz.
+
+### Confirmação de limites FUP-02/FUP-03
+
+- **FUP-02 / PR #1291:** HEAD `c8e86be79acba313c9b7abf882ceed415c3a44b5`, CI #46174772392 SUCCESS. Quatro propriedades P-E com 120 permutações cada passam em Linux/Windows; a resolução transitiva de `depends_on` foi corrigida e comparada à topologia R2. Não há ainda diferencial triplo P-E/P-A/R2 para todos os 120 casos. W06 UNKNOWN; W07 UNKNOWN/BLOCKED.
+- **FUP-03 / PR #1293:** HEAD `f5179cd1383ec9734e781de281211be669023cd2`, CI #46174810003 SUCCESS. Teste de integridade da composição acrescentou cinco subcasos de estado inválido e rejeição atômica. Finding P2 resolvido na revisão. TransactionBook sem limite lógico; ResourceLedger capacity separada; recovery IncomparableRecovery.
+- PRs #1289–#1294 permanecem abertas; nenhuma foi mergeada. R3 continua em andamento; FUP-01/02/03 parciais; FUP-04 tecnicamente concluído com limites. FUP-05, R4 e R5 não iniciados.
