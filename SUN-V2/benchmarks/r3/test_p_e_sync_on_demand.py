@@ -298,6 +298,32 @@ class SyncOnDemandTests(unittest.TestCase):
         self.assertEqual(result.code, SyncCode.INDETERMINATE)
         self.assertIs(result.state, state)
 
+
+    def test_cached_indexes_are_reused_across_observation_cuts(self):
+        state = SyncState(
+            domains=(
+                SyncDomain("cpu", Fraction(0), Fraction(10)),
+                SyncDomain("vdp", Fraction(0), Fraction(10)),
+            ),
+            transitions=(
+                SyncTransition("write", "cpu", Fraction(1)),
+                SyncTransition("observe", "vdp", Fraction(2), ("write",)),
+            ),
+        )
+        first = synchronize(
+            state, requested_domains=("cpu", "vdp"), target_common=Fraction(1)
+        )
+        self.assertEqual(first.code, SyncCode.REACHED)
+        self.assertTrue(first.state._validated)
+        self.assertIs(first.state._transition_by_id, state._transition_by_id)
+        self.assertIs(first.state._transitions_by_owner, state._transitions_by_owner)
+        second = synchronize(
+            first.state, requested_domains=("cpu", "vdp"), target_common=Fraction(2)
+        )
+        self.assertEqual(second.code, SyncCode.REACHED)
+        self.assertIs(second.state._transition_by_id, first.state._transition_by_id)
+        self.assertEqual(second.state.observed, ("write", "observe"))
+
     def test_float_target_is_rejected(self):
         state = SyncState(
             domains=(SyncDomain("cpu", Fraction(0), Fraction(2)),),
