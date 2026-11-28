@@ -212,3 +212,13 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 - A auditoria P-E→R2 compara profile quando compatível e mantém namespaces de model_version distintos; input_cursor permanece metadado do harness. Campos sem correspondência semântica continuam explicitamente não mapeados.
 - **FUP-04 permanece PARCIAL.** O CI comprova os testes existentes nos dois sistemas operacionais, mas não estabelece equivalência integral de snapshot/restore/replay, nem resolve IRQ/ack, log de inputs aceitos, transações não mapeadas ou os campos P-E sem contraparte.
 - **Próxima fatia:** completar a matriz executável W09 apenas nos campos com correspondência semântica demonstrável, incluindo atomicidade e replay nos cortes compartilhados; manter R2 imutável e preservar as rejeições UnsupportedSnapshot/UnsupportedProjection.
+
+
+### Atualização W09 — CI #11269 e nova matriz de atomicidade (28/11/2026)
+
+- **PR #1294 / FUP-04:** CI #11269 [SUCCESS](https://github.com/leonardo201800478/SUN/actions/runs/46168258450), SHA `0e810baa6527d93f5fff868fab363eeac23546a0`.
+- R3 descartável Linux/Windows, R2 independente Linux, R2 Python Windows, equivalência byte a byte dos corpora Linux/Windows e Rust quality/unit regression: SUCCESS.
+- Jobs de produção Z80, VDP, PSG, YM2413, CPAL, SDL3, Slint/WGPU, scheduler e frame pacing: SKIPPED; sem inferência de validação de hardware.
+- Novos testes no HEAD seguinte `f88a5ea7a24a302d15be2124997a362ef7d11789`: restore R2 de artefato forjado contendo INT-ack UNKNOWN rejeita atomicamente e preserva estado ativo; round-trip da projeção P-D→R2 verifica watermark e coordenadas compartilhadas de cada deadline, sem declarar equivalência de ledgers de efeitos.
+- CI #11270 para `f88a5ea7a24a302d15be2124997a362ef7d11789`: em execução no momento deste registro; resultado não antecipado.
+- FUP-04 permanece PARCIAL até concluir a matriz W09 de todos os campos compartilhados com correspondência semântica demonstrável e documentar campos sem contraparte. R2 permanece imutável.
