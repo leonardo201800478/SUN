@@ -167,5 +167,99 @@ class PEADifferentialMatrixTests(unittest.TestCase):
         self.assertEqual(_pa_progress(reference.state), _pe_progress(candidate.state))
 
 
+    def test_explicit_same_instant_dependency_orders_noncommutative_transitions(self):
+        pa_state = ACausalState((
+            ADevice("cpu", Fraction(0)),
+            ADevice("d0", Fraction(0), (
+                ATransition("first-write", Fraction(5)),
+            )),
+            ADevice("d1", Fraction(0), (
+                ATransition("second-write", Fraction(5), requires=("first-write",)),
+            )),
+        ))
+        pe_state = SyncState(
+            (
+                SyncDomain("cpu", Fraction(0), Fraction(100)),
+                SyncDomain("d0", Fraction(0), Fraction(100)),
+                SyncDomain("d1", Fraction(0), Fraction(100)),
+            ),
+            (
+                SyncTransition("first-write", "d0", Fraction(5)),
+                SyncTransition("second-write", "d1", Fraction(5),
+                               depends_on=("first-write",)),
+            ),
+        )
+        reference = p_a_synchronize(
+            pa_state, target_device="cpu", at_common=Fraction(5),
+            observes=("d0", "d1"),
+        )
+        candidate = p_e_synchronize(
+            pe_state, requested_domains=("cpu", "d0", "d1"),
+            target_common=Fraction(5),
+        )
+        self.assertEqual(reference.code, ACausalCode.SYNCHRONIZED)
+        self.assertEqual(candidate.code, SyncCode.REACHED)
+        self.assertEqual(reference.applied_order, ("first-write", "second-write"))
+        self.assertEqual(candidate.state.observed, reference.applied_order)
+        self.assertEqual(_pa_progress(reference.state), _pe_progress(candidate.state))
+
+    def test_repeated_observation_is_idempotent_and_unrelated_domain_is_unchanged(self):
+        pa_state = ACausalState((
+            ADevice("cpu", Fraction(0)),
+            ADevice("d0", Fraction(0), (
+                ATransition("d0-observation", Fraction(5)),
+            )),
+            ADevice("unrelated", Fraction(0), (
+                ATransition("unrelated-event", Fraction(4)),
+            )),
+        ))
+        pe_state = SyncState(
+            (
+                SyncDomain("cpu", Fraction(0), Fraction(100)),
+                SyncDomain("d0", Fraction(0), Fraction(100)),
+                SyncDomain("unrelated", Fraction(0), Fraction(100)),
+            ),
+            (
+                SyncTransition("d0-observation", "d0", Fraction(5)),
+                SyncTransition("unrelated-event", "unrelated", Fraction(4)),
+            ),
+        )
+        first_reference = p_a_synchronize(
+            pa_state, target_device="cpu", at_common=Fraction(5),
+            observes=("d0",),
+        )
+        first_candidate = p_e_synchronize(
+            pe_state, requested_domains=("cpu", "d0"),
+            target_common=Fraction(5),
+        )
+        self.assertEqual(first_reference.code, ACausalCode.SYNCHRONIZED)
+        self.assertEqual(first_candidate.code, SyncCode.REACHED)
+        self.assertEqual(_pa_progress(first_reference.state), _pe_progress(first_candidate.state))
+        self.assertEqual(
+            next(item.progress_common for item in first_reference.state.devices
+                 if item.name == "unrelated"),
+            Fraction(0),
+        )
+        self.assertEqual(
+            next(item.progress for item in first_candidate.state.domains
+                 if item.identity == "unrelated"),
+            Fraction(0),
+        )
+
+        repeated_reference = p_a_synchronize(
+            first_reference.state, target_device="cpu", at_common=Fraction(5),
+            observes=("d0",),
+        )
+        repeated_candidate = p_e_synchronize(
+            first_candidate.state, requested_domains=("cpu", "d0"),
+            target_common=Fraction(5),
+        )
+        self.assertEqual(repeated_reference.code, ACausalCode.SYNCHRONIZED)
+        self.assertEqual(repeated_candidate.code, SyncCode.REACHED)
+        self.assertEqual(repeated_reference.state, first_reference.state)
+        self.assertEqual(repeated_candidate.state, first_candidate.state)
+        self.assertEqual(_pa_progress(repeated_reference.state), _pe_progress(repeated_candidate.state))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
