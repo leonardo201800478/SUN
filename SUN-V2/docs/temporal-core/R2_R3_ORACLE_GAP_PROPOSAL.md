@@ -1,7 +1,7 @@
 # SUN V2 — proposta de tratamento das lacunas R1/R2 identificadas em R3
 
-**Classificação:** proposta técnica de revisão; não altera R1 nem R2
-**Estado:** aberta para revisão independente
+**Classificação:** proposta técnica com disposição aprovada pelo responsável do projeto; não altera R1 nem R2
+**Estado:** exceções W06/W07 aceitas para closeout experimental P-A; R1/R2 preservados
 **R1 aprovado:** v0.3.18, conteúdo SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, merge `88e105d6495f7f5105502e53666a7b0d29f77572`
 **R2 aprovado:** PR #1283, merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`
 **P-A inicial revisado:** `977641816c7396ee96c6f916efea4ee736042e24`
@@ -180,3 +180,15 @@ A segunda condição mostra que a identidade textual do rótulo de evidência po
 **CI #11072:** [run 46060833047](https://github.com/leonardo201800478/SUN/actions/runs/46060833047), SUCCESS no HEAD `afbdf337da80243d05202163fcc7d8412dfe0db8). R3 183/183 Linux e Windows; corpus replayável 25 fixtures/134 operações-cortes, digest `2dcf09eeaf6ffe03e6bcf1cfda087aeedeb865d351b6ac081a0dc12ff28bc28f`; corpus canônico 112/1.475, digest inalterado; equivalência byte a byte Linux/Windows PASS.
 
 **Disposição:** controle positivo sintético validado; divergência negativa mantida. Não modificar R2 aprovado nem declarar W06 físico resolvido. W06 físico permanece UNKNOWN; P-A não fechado; R4/R5 pendentes.
+
+## 11. Disposição aprovada pelo responsável do projeto — caminho 2 (28/11/2026)
+
+Decisão: preservar W06/W07 como UNKNOWN, aceitar suas divergências P-A/R2 como exceções explícitas do experimento R3, fechar P-A apenas como baseline experimental congelada e autorizar P-D/P-E sobre o mesmo corpus. Registro: comentário do responsável na PR #1284 e R3_PA_CLOSEOUT.md.
+
+- W06: sem base de fase comum verificável/autenticada, P-A retorna IndeterminateCausalOrder sem claim/watermark. R2 retorna Accepted no fixture sintético porque não modela phase_basis. Divergência preservada; nenhum dado físico inferido.
+- W07: sem relação causal/comutativa par-a-par B/C declarada, P-A retorna IndeterminateCausalOrder sem mutação. R2 retorna Advanced no fixture porque não modela a relação B/C. Divergência preservada; nenhum sentido de precedência inferido.
+- R1 v0.3.18 e R2 aprovado permanecem imutáveis. Não alterar o oráculo para forçar equivalência.
+- Baseline P-A congelada em 466f789bc9bfc73c7d6388f31b3f9142b48acf78; CI #11122: 206 testes R3 e 256 R2 por OS, 184 testes de corpus por OS, 351 pontos por OS; corpus canônico 119/1.483 e replayável 25/134.
+- P-D/P-E autorizados a iniciar com as mesmas fixtures/inputs/operations e critérios de comparação da decisão. Devem reproduzir os resultados P-A e manter as duas exceções em relatório separado.
+
+Esta disposição não afirma que R2 está globalmente incorreto, não altera a semântica normativa, não fecha R3, não aprova R4/R5 e não autoriza produção CHRONOS/V2 antes de R5.
