@@ -419,7 +419,7 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 
 ### FUP-01 — extensão da cobertura estrutural W05 (28/11/2026)
 
-- A PR #1290 adicionou diferencial para owner vazio, participant identity duplicada, monotonicidade de geração após cancelamento terminal e orçamento de microstep em livro pré-construído.
+- A PR #1290 adicionou diferencial validado para owner vazio, participant identity duplicada e monotonicidade de geração após cancelamento terminal. O teste de orçamento de microstep em livro pré-construído foi adicionado no HEAD posterior, mas permanece NOT RUN.
 - O CI #46184104289 validou o SHA `3cd5d1dafc79e0a90e7549c1ec50eaa188983aad`: R2 258/258 Linux e Windows; R3 305/305 Linux e Windows; corpus emitter 202/202 por OS; corpus canônico 135 fixtures / 1.525 cuts e replayable 30 fixtures / 143 operações, ambos byte-identical Linux/Windows; mutation checks R2 e Rust quality/unit regression PASS. Jobs de produção/hardware SKIPPED.
 - O commit seguinte `57d44291115a243bf3c67d78c978148adb1dd141` adicionou teste diferencial para microstep acima do limite em livro pré-construído. Nenhum workflow run foi encontrado associado a esse SHA no momento do registro; esse teste permanece NOT RUN e o HEAD não está integralmente validado.
 - `publication_rejects_empty_profile_without_mutation` foi classificado como NOT COMPARABLE: o perfil existe no R2, mas não é representado nos contextos temporais P-A/P-D.
