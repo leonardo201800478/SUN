@@ -1,9 +1,9 @@
 # R3 FUP-01 — W05/R2-T06/T15 traceability matrix
 
-**Status:** PARTIAL — traceability consolidation, not a gate approval  
-**R3 baseline:** `98cd9e258ae463e32397a119d4d4e6a007346c22`  
-**P-A/W05 evidence:** PR #1290, HEAD `a3a3704cec15dcc77b5a1d6f8caaf41f6d4210f9`, CI #11283 SUCCESS  
-**CI:** https://github.com/leonardo201800478/SUN/actions/runs/46169692644  
+**Status:** PARTIAL — traceability consolidation, not a gate approval
+**R3 baseline:** `98cd9e258ae463e32397a119d4d4e6a007346c22`
+**P-A/W05 evidence:** PR #1290, HEAD `a3a3704cec15dcc77b5a1d6f8caaf41f6d4210f9`, CI #11283 SUCCESS
+**CI:** https://github.com/leonardo201800478/SUN/actions/runs/46169692644
 **Scope:** W05 generation replacement, deadline publication/cancellation, arbitration, watermark interaction and generation fencing.
 
 ## 1. Interpretation
