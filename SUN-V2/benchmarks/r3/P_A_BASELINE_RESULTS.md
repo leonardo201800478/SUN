@@ -631,3 +631,18 @@ A tabela publica, para cada matriz, o **maior p99 entre os pontos de parâmetros
 O p99 com 30 amostras é uma estatística descritiva do lote, não um limite robusto de cauda. Linux teve resolução de CPU clock entre 2.204 ns e 2.784 ns e manteve métricas de CPU. Windows apresentou resolução de 15.625.000 ns em todas as matrizes; métricas de CPU foram corretamente classificadas como `SKIPPED_COARSE_RESOLUTION`. Wall-time continua disponível.
 
 Essas medições são observações sintéticas de Python e não constituem benchmark do runtime Rust, FPS, frame pacing ou evidência de hardware SMS.
+
+## Baseline congelada P-A — decisão de closeout (28/11/2026)
+
+**HEAD:** 466f789bc9bfc73c7d6388f31b3f9142b48acf78
+**CI:** [#11122 / run 46105849156](https://github.com/leonardo201800478/SUN/actions/runs/46105849156) — SUCCESS.
+
+- R3 disposable: 206/206 Linux e Windows.
+- Corpus emitter: 184 testes por OS.
+- R2 independente: 256/256 Linux e Windows, mutation checks PASS.
+- Sete matrizes P-A: 351 pontos por OS; 5 warm-ups e 30 amostras por ponto. Windows CPU-time SKIPPED_COARSE_RESOLUTION; wall-time permanece observação por runner.
+- Corpus canônico: 119 fixtures/1.483 cortes; digest lógico ab5e146eda37e8292159cc5440beca615c5b511383e3807b24adbacbb490056b.
+- Corpus replayável: 25 fixtures/134 operações-cortes; digest 6189653bb3aa18fc5805f7dd1ae9708ea31b349d03da7ea9fcc906350cbcfbb6.
+- CI comparou JSONs canônicos e replayáveis byte a byte: PASS Linux/Windows.
+
+**Decisão:** P-A fechado somente como baseline experimental, com W06/W07 preservados como exceções explícitas. W06 fase física/base permanece UNKNOWN. W07 relação B/C permanece UNKNOWN. As divergências P-A/R2 não contam como equivalência positiva. R1/R2 e P-A ficam congelados; P-D/P-E autorizados a iniciar com as mesmas fixtures. Detalhes e critérios: R3_PA_CLOSEOUT.md.
