@@ -186,4 +186,3 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 3. Para P-E, testar separadamente o envelope e os invariantes candidatos; não exigir igualdade de \`SyncState\` com \`MachineState\`.
 4. Adicionar controles R2 de snapshot suportado e \`UnsupportedSnapshot\` para INT-ack UNKNOWN, preservando ausência de artefato e estado ativo.
 5. Reportar explicitamente campos cobertos, não representados e não comparáveis. FUP-04 só fecha com matriz e CI Linux/Windows no SHA exato; não basta round-trip candidato-local.
-
