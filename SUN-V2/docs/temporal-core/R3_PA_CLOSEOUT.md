@@ -1,9 +1,9 @@
 # SUN V2 — decisão de closeout da baseline P-A (R3)
 
-**Data da decisão:** 2026-11-28  
-**Aprovação:** responsável pelo projeto SUN V2, decisão explícita registrada na conversa de projeto e no comentário da PR #1284.  
-**Classificação:** decisão de escopo para experimento R3; não altera contrato normativo, oráculo aprovado ou arquitetura de produção.  
-**Baseline P-A congelada:** `466f789bc9bfc73c7d6388f31b3f9142b48acf78`  
+**Data da decisão:** 2026-11-28
+**Aprovação:** responsável pelo projeto SUN V2, decisão explícita registrada na conversa de projeto e no comentário da PR #1284.
+**Classificação:** decisão de escopo para experimento R3; não altera contrato normativo, oráculo aprovado ou arquitetura de produção.
+**Baseline P-A congelada:** `466f789bc9bfc73c7d6388f31b3f9142b48acf78`
 **CI de validação:** [#11122 / run 46105849156](https://github.com/leonardo201800478/SUN/actions/runs/46105849156) — SUCCESS.
 
 ## 1. Decisão
