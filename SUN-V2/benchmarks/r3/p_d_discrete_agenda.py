@@ -507,7 +507,6 @@ def _validate(state: object) -> str | None:
             return "duplicate unordered pair relation"
         pairs.add(pair)
     processed = (
-        EventStatus.CLAIMED,
         EventStatus.DISPATCHED,
         EventStatus.COMPLETED,
     )
@@ -518,7 +517,7 @@ def _validate(state: object) -> str | None:
         )
         for item in state.events
     ):
-        return "INVARIANT_VIOLATION: claimed or processed event is beyond closed watermark"
+        return "INVARIANT_VIOLATION: dispatched or completed event is beyond closed watermark"
     return None
 
 
