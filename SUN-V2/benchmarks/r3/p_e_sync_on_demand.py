@@ -8,10 +8,12 @@ from __future__ import annotations
 
 from bisect import bisect_right
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from fractions import Fraction
 from types import MappingProxyType
+
+from r3_transaction_core import TransactionBook, TxCode, TxResult, _validate_book
 
 
 class SyncCode(str, Enum):
@@ -92,6 +94,7 @@ class SyncState:
         default_factory=lambda: MappingProxyType({}), repr=False, compare=False
     )
     _validated: bool = field(default=False, repr=False, compare=False)
+    transactions: TransactionBook = field(default_factory=TransactionBook)
 
     def __post_init__(self) -> None:
         if not self._transition_by_id and self.transitions:
@@ -460,6 +463,20 @@ def _choose(
         return None
     return tuple(ordered)
 
+def apply_transaction(
+    state: SyncState, operation, *args, **kwargs
+) -> tuple[SyncState, TxResult]:
+    """Apply one shared W08 operation and carry its immutable book in P-E state."""
+    if not callable(operation):
+        result = TxResult(
+            TxCode.INVALID_INPUT, state.transactions,
+            detail="transaction operation must be callable",
+        )
+        return state, result
+    result = operation(state.transactions, *args, **kwargs)
+    return replace(state, transactions=result.book), result
+
+
 def synchronize(
     state: SyncState,
     *,
@@ -544,6 +561,7 @@ def synchronize(
         state._relation_index,
         state._commutative_groups,
         True,
+        state.transactions,
     )
     code = SyncCode.REACHED if frontier == target else SyncCode.STOPPED_AT
     return SyncResult(
