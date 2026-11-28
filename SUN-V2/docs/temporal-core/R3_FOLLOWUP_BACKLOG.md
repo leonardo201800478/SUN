@@ -413,7 +413,7 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 - O finding P2 sobre publicação com cancelamento antigo pendente foi corrigido e a thread correspondente foi resolvida após CI #46183529839 SUCCESS no SHA `ec74ea861f8a823d9495cbc6368e14d1e7d0a38c`.
 - Evidência nesse SHA: R2 257/257 Linux e Windows; R3 302/302 Linux e Windows; corpus emitter 202/202 por OS; corpus canônico 135 fixtures / 1.525 cuts, digest `4486046a13980e26e3e491bc7e5457cc52159dc5560230421fb9357f41b492b3`; replayable 30 fixtures / 143 operações, digest `ed039c1985d1a0d1dee518a33bfcbbefd3713368e040e113f4b8d856c255e215`; Rust quality/unit regression PASS. Jobs de produção/hardware SKIPPED.
 - Nova validação após a cobertura de predecessor Scheduled: CI #46183873117 SUCCESS, candidata SHA `6949b074096bad237cf4413ad75fc5762a6d9218`. R2 258/258 Linux e Windows; R3 303/303 Linux e Windows; corpus emitter 202/202 por OS; canonical 135 fixtures / 1.525 cuts e replayable 30 fixtures / 143 operações com digest idêntico entre Linux/Windows; mutation checks R2 e Rust quality/unit regression PASS. Jobs de produção/hardware SKIPPED. A tentativa anterior SHA `513e825c9f0464dc19cfa7e9ddf16c1038ca32d3` falhou por erro no helper de teste R2 (argumento `at_common` duplicado), corrigido na candidata atual.
-- O crosswalk foi atualizado em `R3_FUP01_W05_TRACEABILITY.md`: inventário R2-T06 agora tem 80 métodos; P-D não representa explicitamente `Dispatched` ou `Failed` e contém `Superseded` candidato-local. Esses estados permanecem NOT COMPARABLE/NOT REPRESENTED, sem mapeamento artificial.
+- O crosswalk foi atualizado em `R3_FUP01_W05_TRACEABILITY.md`: inventário R2-T06 tem 80 métodos; P-D agora representa `Dispatched` no lifecycle do scheduler, mantém `Failed` NOT REPRESENTED e preserva `Superseded` como estado candidato-local sem correspondência direta.
 - FUP-01 continua PARCIAL; R3 continua em andamento. Nenhuma aprovação R4/R5, merge ou implementação de produção foi realizada.
 
 
@@ -423,7 +423,7 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 - O CI #46184104289 validou o SHA `3cd5d1dafc79e0a90e7549c1ec50eaa188983aad`: R2 258/258 Linux e Windows; R3 305/305 Linux e Windows; corpus emitter 202/202 por OS; corpus canônico 135 fixtures / 1.525 cuts e replayable 30 fixtures / 143 operações, ambos byte-identical Linux/Windows; mutation checks R2 e Rust quality/unit regression PASS. Jobs de produção/hardware SKIPPED.
 - O commit seguinte `57d44291115a243bf3c67d78c978148adb1dd141` adicionou teste diferencial para microstep acima do limite em livro pré-construído. Nenhum workflow run foi encontrado associado a esse SHA no momento do registro; esse teste permanece NOT RUN e o HEAD não está integralmente validado.
 - `publication_rejects_empty_profile_without_mutation` foi classificado como NOT COMPARABLE: o perfil existe no R2, mas não é representado nos contextos temporais P-A/P-D.
-- O crosswalk registra ainda que P-D `claim_next()` pode produzir `Claimed` sem W fechado e `complete()` transita diretamente de `Claimed` para `Completed`. Isso não é equivalente ao caminho R2/P-A `close_watermark -> dispatch -> complete`; manter como abstração candidate-local/não comparável, sem inferir equivalência.
+- O crosswalk registra agora o caminho comparável P-D `close_watermark -> Claimed -> dispatch_event -> Dispatched -> complete -> Completed`, com W fechado antes do dispatch, retries idempotentes e bloqueio de substituição enquanto Dispatched. `claim_next()` ainda permite claim sem W, mas dispatch o rejeita como InvariantViolation; permanece candidate-local e não substitui `close_watermark()` como claim comparável. `Failed`/efeitos parciais continuam NOT REPRESENTED em P-D.
 - FUP-01 permanece PARCIAL. Não fechar R3, R4 ou R5 com base nesses resultados.
 
 
@@ -441,3 +441,14 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 - Testes: `test_p_d_w05_malformed_expected_participant_container_is_rejected_atomically`, `test_p_d_w05_malformed_deadline_entries_are_rejected_atomically`, `test_p_d_w05_malformed_pending_cancellation_entries_are_rejected_atomically`.
 - CI #46184815771 SUCCESS no SHA `ba611c798755a2bd7c6d02f3d9b31effe47bf50c`: R2 258/258 Linux e Windows; R3 310/310 Linux e Windows; corpus emitter 202/202 por OS; canonical/replayable byte-equivalent; mutation checks R2 e Rust quality/unit regression PASS. Jobs de produção/hardware SKIPPED.
 - FUP-01 permanece PARCIAL: lifecycle `Dispatched`/`Failed`, `Superseded`, claim/complete sem watermark e demais limites de projeção continuam abertos para análise semântica.
+
+
+### FUP-01 — lifecycle Claimed/Dispatched e fencing de geração (28/11/2026)
+
+- P-D ganhou `EventStatus.DISPATCHED`, `dispatch_event()` e conclusão condicionada a dispatch. O ciclo comparável usa `close_watermark()` para claim lógico e fechamento de W antes do dispatch.
+- Dispatch repetido em `Dispatched`/`Completed` é idempotente; completion prematuro é rejeitado; claim experimental de `claim_next()` sem W não pode avançar para dispatch/completion.
+- A publicação contextual agora rejeita substituição enquanto a geração anterior estiver `Dispatched`; depois de `Completed`, uma geração sucessora pode ser publicada. Geração antiga cancelada/substituída resulta em `StaleIgnored` no dispatch.
+- Testes diferenciais adicionados: `test_p_d_w05_claim_dispatch_complete_lifecycle_matches_p_a`, `test_p_d_w05_unwatermarked_claim_cannot_dispatch_or_complete`, `test_p_d_w05_dispatched_generation_cannot_be_replaced_until_completed`, `test_p_d_w05_replaced_old_generation_is_stale_at_dispatch`.
+- CI #46186515697 SUCCESS no SHA `3f0bd208cacf6a135be0905b579a88de1903ce2b`: R2 258/258 Linux e Windows; R3 314/314 Linux e Windows; corpus emitter 202/202 por OS; corpus canônico/replayável byte-identical; R2 mutation checks e Rust quality/unit regression PASS. Rust workspace e jobs de produção/hardware SKIPPED.
+- `Failed` permanece NOT REPRESENTED em P-D porque o protótipo não possui ledger de efeitos parciais/recuperação. `claim_next()` sem watermark continua candidate-local e não substitui `close_watermark()` como claim comparável.
+- FUP-01 permanece PARCIAL; não autoriza R4/R5 nem produção.
