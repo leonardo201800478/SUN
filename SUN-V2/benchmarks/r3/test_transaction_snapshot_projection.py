@@ -9,6 +9,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "verification" / "r2_reference"))
 
+from p_d_discrete_agenda import AgendaState  # noqa: E402
+from p_e_sync_on_demand import SyncDomain, SyncState  # noqa: E402
 from r3_transaction_core import (  # noqa: E402
     MarkerKind, Transaction, TransactionBook, TxMarker, TxSpec, TxState,
 )
@@ -109,6 +111,20 @@ class TransactionSnapshotProjectionTests(unittest.TestCase):
         )
         self.assertEqual(restored.code, SnapshotCode.OK)
         self.assertEqual(restored.restored_state.transactions, projected.projection.records)
+
+    def test_same_transaction_projection_is_reachable_from_both_candidate_states(self):
+        book = candidate_book()
+        pd_state = AgendaState(transactions=book)
+        pe_state = SyncState(
+            domains=(SyncDomain("cpu", Fraction(0), Fraction(10)),),
+            transitions=(),
+            transactions=book,
+        )
+        pd_projection = project_transaction_book(pd_state.transactions)
+        pe_projection = project_transaction_book(pe_state.transactions)
+        self.assertEqual(pd_projection.code, TransactionProjectionCode.OK)
+        self.assertEqual(pe_projection.code, TransactionProjectionCode.OK)
+        self.assertEqual(pd_projection.projection, pe_projection.projection)
 
     def test_preserves_only_explicitly_shared_coordinates(self):
         projected = project_transaction_book(candidate_book()).projection
