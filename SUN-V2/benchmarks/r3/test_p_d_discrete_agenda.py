@@ -348,6 +348,17 @@ class DiscreteAgendaTests(unittest.TestCase):
             next(item for item in pending.state.events if item.identity == "deadline").status,
             EventStatus.CANCEL_PENDING,
         )
+        before_cancel = close_watermark(pending.state, Fraction(7), context)
+        self.assertEqual(before_cancel.code, AgendaCode.ACCEPTED)
+        context_at_7 = AgendaContext(
+            context.participants, context.expected_participants, Fraction(7)
+        )
+        blocked_at_cancel = close_watermark(
+            before_cancel.state, Fraction(8), context_at_7
+        )
+        self.assertEqual(blocked_at_cancel.code, AgendaCode.BLOCKED)
+        self.assertIs(blocked_at_cancel.state, before_cancel.state)
+
         blocked = close_watermark(pending.state, Fraction(10), context)
         self.assertEqual(blocked.code, AgendaCode.BLOCKED)
         self.assertIs(blocked.state, pending.state)
