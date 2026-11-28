@@ -1,9 +1,9 @@
 # R3 FUP-03 — W08 TransactionBook / ResourceLedger boundary audit
 
-**Status:** PARTIAL — composition behavior tested; recovery remains incomparable  
-**R3 baseline:** `98cd9e258ae463e32397a119d4d4e6a007346c22`  
-**W08 composition PR:** #1293, corrected HEAD `354d2a5da7b5d12885ade6f045de8387f309acde`  
-**Correction CI:** #46173011966 SUCCESS — https://github.com/leonardo201800478/SUN/actions/runs/46173011966  
+**Status:** PARTIAL — composition behavior tested; recovery remains incomparable
+**R3 baseline:** `98cd9e258ae463e32397a119d4d4e6a007346c22`
+**W08 composition PR:** #1293, corrected HEAD `354d2a5da7b5d12885ade6f045de8387f309acde`
+**Correction CI:** #46173011966 SUCCESS — https://github.com/leonardo201800478/SUN/actions/runs/46173011966
 **Earlier composition evidence:** PR #1293 / CI #11289 SUCCESS at `7d4eb4dbaa729a49a588fe4f7bbbcf8e4742efa5`
 
 ## 1. TransactionBook storage budget decision
