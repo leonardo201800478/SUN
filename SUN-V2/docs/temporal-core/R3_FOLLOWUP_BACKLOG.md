@@ -482,7 +482,7 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 ### FUP-01 — Scheduled <= W em todas as operações (28/11/2026; CI pendente)
 
 - Novo teste diferencial test_p_d_w05_scheduled_event_behind_closed_watermark_is_rejected_by_all_operations: D=4/W=5 preconstruído; publish/cancel/arbitrate/close/dispatch/complete/replace retornam InvalidInput e preservam o estado. P-D não tem equivalente direto a schedule_microstep.
-- HEAD 0138fe5d26e7947b2aa5833176fbce5b49156f4f; CI ainda não apareceu na consulta. FUP-01 segue PARCIAL.
+- HEAD 0138fe5d26e7947b2aa5833176fbce5b49156f4f validado por CI #46188350099 SUCCESS: R2 258/258 Linux/Windows; R3 317/317 Linux/Windows; corpus emitter 202/202 por OS; corpora canônico/replayável byte-identical; mutation checks R2 e Rust quality/unit regression PASS. FUP-01 segue PARCIAL.
 
 
 ### FUP-01 — escopo do status Failed
