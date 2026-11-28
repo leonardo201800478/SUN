@@ -21,6 +21,8 @@ from microstep_reference import (  # noqa: E402
 from p_a_microsteps import (  # noqa: E402
     AStepCycle,
     AStepObligation,
+    AStepPairConstraint,
+    AStepPairRelation,
     process_obligation as p_a_process_obligation,
 )
 from replayable_fixture_corpus import (  # noqa: E402
@@ -30,14 +32,18 @@ from replayable_fixture_corpus import (  # noqa: E402
 )
 
 
-def _state_data(state):
-    """Encode either model's immutable cycle into one shared neutral shape."""
+def _state_data(state, *, future_override=None, relations_override=None):
+    """Encode both models plus neutral sidecar declarations for replay."""
     if isinstance(state, AStepCycle):
         pending = state.pending
         identity_name = "identity"
+        future = state.future
+        relations = state.relations
     elif isinstance(state, MicrostepCycle):
         pending = state.pending
         identity_name = "obligation_id"
+        future = future_override if future_override is not None else ()
+        relations = relations_override if relations_override is not None else ()
     else:
         raise TypeError(f"unsupported W07 state: {type(state).__name__}")
     return {
@@ -54,6 +60,23 @@ def _state_data(state):
             for item in pending
         ],
         "resolved": list(state.resolved),
+        "future": [
+            {
+                "identity": item.identity,
+                "owner": item.owner,
+                "microstep": item.microstep,
+                "commutative": item.commutative,
+            }
+            for item in future
+        ],
+        "relations": [
+            {
+                "first_id": item.first_id,
+                "second_id": item.second_id,
+                "relation": item.relation.value,
+            }
+            for item in relations
+        ],
     }
 
 
@@ -85,6 +108,20 @@ def _p_a_from_data(data):
             for item in data["pending"]
         ),
         tuple(data["resolved"]),
+        tuple(
+            AStepObligation(
+                item["identity"], item["owner"], item["microstep"],
+                item["commutative"],
+            )
+            for item in data.get("future", ())
+        ),
+        tuple(
+            AStepPairConstraint(
+                item["first_id"], item["second_id"],
+                AStepPairRelation(item["relation"]),
+            )
+            for item in data.get("relations", ())
+        ),
     )
 
 
@@ -124,10 +161,23 @@ def _p_a_step(data, name, args):
 def _r2_step(data, name, args):
     if name != "process_obligation":
         raise ValueError(f"unsupported W07 operation: {name}")
+    source = _unwrap_state(data)
     result = r2_process_obligation(
-        _r2_from_data(_unwrap_state(data)), **_arguments(args)
+        _r2_from_data(source), **_arguments(args)
     )
-    return {"state": _state_data(result.state), "code": result.code.value}
+    emitted_ids = {item[0] for item in args["emitted"]}
+    remaining_future = tuple(
+        item for item in source.get("future", ())
+        if item["identity"] not in emitted_ids
+    )
+    relations = tuple(source.get("relations", ()))
+    return {
+        "state": _state_data(
+            result.state, future_override=remaining_future,
+            relations_override=relations,
+        ),
+        "code": result.code.value,
+    }
 
 
 class W07ReplayableOracleGapTests(unittest.TestCase):
@@ -141,6 +191,12 @@ class W07ReplayableOracleGapTests(unittest.TestCase):
                 AStepObligation("b", "vdp", 0, True),
             ),
             (),
+            (AStepObligation("c", "psg", 1, False),),
+            (
+                AStepPairConstraint(
+                    "a", "b", AStepPairRelation.COMMUTATIVE
+                ),
+            ),
         )
         operations = (
             {
@@ -187,13 +243,14 @@ class W07ReplayableOracleGapTests(unittest.TestCase):
                 "workload": "P-A",
                 "classification": "OBSERVATION",
                 "question": (
-                    "Does the P-A earlier-microstep barrier add an ordering "
-                    "constraint not present in the independent R2 model?"
+                    "Does P-A require an explicit pairwise relation before "
+                    "processing a later microstep across participants?"
                 ),
                 "interpretation": (
-                    "Counterexample to equivalence; not proof that either "
-                    "ordering is physically correct. Pairwise B/C causality "
-                    "and commutativity remain unestablished."
+                    "P-A now returns IndeterminateCausalOrder because the "
+                    "pairwise relation between B/C is UNKNOWN; R2 accepts the "
+                    "later microstep. This preserves the oracle gap without "
+                    "claiming either synthetic ordering is physical."
                 ),
                 "source_contract": "R1 v0.3.18 sections 6.1, 16.6.2, 16.6.3",
             },
@@ -207,7 +264,7 @@ class W07ReplayableOracleGapTests(unittest.TestCase):
         self.assertFalse(fixture["all_equal"])
         self.assertEqual(fixture["first_divergence"]["sequence"], 1)
         self.assertEqual(
-            fixture["first_divergence"]["left_state"]["code"], "Blocked"
+            fixture["first_divergence"]["left_state"]["code"], "IndeterminateCausalOrder"
         )
         self.assertEqual(
             fixture["first_divergence"]["right_state"]["code"], "Advanced"
