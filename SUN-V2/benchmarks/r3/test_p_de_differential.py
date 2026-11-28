@@ -801,6 +801,71 @@ class CandidateDifferentialTests(unittest.TestCase):
         self.assertEqual(pd_invalid.state, pd_first.state)
 
 
+    def test_p_d_w05_generation_replacement_preserves_successor_microstep(self):
+        names = frozenset(("cpu", "vdp"))
+        pa_context = ADeadlineContext(
+            (
+                AParticipant("cpu", Fraction(0), Fraction(100), Fraction(1), Fraction(0)),
+                AParticipant("vdp", Fraction(0), Fraction(100), Fraction(1), Fraction(0)),
+            ),
+            names,
+        )
+        pd_context = AgendaContext(
+            (
+                AgendaParticipant("cpu", Fraction(0), Fraction(100)),
+                AgendaParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        pa_first = p_a_publish_deadline(
+            ADeadlineBook(), pa_context, owner="cpu", identity="w05-replace-microstep",
+            generation=0, at_common=Fraction(10), effect_id="old-effect",
+        )
+        pd_first = p_d_publish_with_context(
+            AgendaState(), pd_context, owner="cpu", identity="w05-replace-microstep",
+            generation=0, at_common=Fraction(10), effect_id="old-effect",
+        )
+        self.assertEqual(_p_a_w05_state(pa_first.book), _p_d_w05_state(pd_first.state))
+
+        pa_replaced = p_a_replace_deadline(
+            pa_first.book, pa_context, owner="cpu", identity="w05-replace-microstep",
+            generation=0, cancel_at=Fraction(5), new_generation=1,
+            new_at_common=Fraction(20), new_effect_id="new-effect", microstep=True,
+        )
+        pd_replaced = p_d_replace_with_context(
+            pd_first.state, pd_context, owner="cpu", identity="w05-replace-microstep",
+            generation=0, cancel_at=Fraction(5), new_generation=1,
+            new_at_common=Fraction(20), new_effect_id="new-effect", microstep=True,
+        )
+        self.assertEqual(pa_replaced.code.value, "Accepted")
+        self.assertEqual(pd_replaced.code.value, pa_replaced.code.value)
+        self.assertEqual(_p_a_w05_state(pa_replaced.book), _p_d_w05_state(pd_replaced.state))
+        self.assertEqual(pa_replaced.book.deadlines[-1].microstep, 1)
+        self.assertEqual(pd_replaced.state.events[-1].microstep, 1)
+
+        pa_cancel = p_a_cancel_deadline(
+            pa_replaced.book, pa_context, owner="cpu",
+            identity="w05-replace-microstep", generation=1,
+            at_common=Fraction(20), microstep_level=0,
+        )
+        pd_cancel = p_d_request_cancel(
+            pd_replaced.state, pd_context, owner="cpu",
+            identity="w05-replace-microstep", generation=1,
+            at_common=Fraction(20), microstep_level=0,
+        )
+        self.assertEqual(pa_cancel.code.value, "Accepted")
+        self.assertEqual(pd_cancel.code.value, pa_cancel.code.value)
+        self.assertEqual(_p_a_w05_state(pa_cancel.book), _p_d_w05_state(pd_cancel.state))
+        self.assertEqual(
+            next(item for item in pa_cancel.book.deadlines if item.generation == 1).status.value,
+            "CancelPending",
+        )
+        self.assertEqual(
+            next(item for item in pd_cancel.state.events if item.generation == 1).status.value,
+            "CancelPending",
+        )
+
+
     def test_p_d_w05_generation_replacement_rejects_invalid_cancellation_frontiers_atomically(self):
         names = frozenset(("cpu", "vdp"))
         pa_context = ADeadlineContext(
