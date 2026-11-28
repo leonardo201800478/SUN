@@ -460,3 +460,12 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 - Teste: `test_p_d_w05_dispatch_and_completion_reject_invalid_descriptors_atomically`.
 - CI #46186912606 SUCCESS no SHA `4b05025d8a2ebc0b21052eccdada0f305154a696`: R2 258/258 Linux e Windows; R3 315/315 Linux e Windows; corpus emitter 202/202 por OS; corpora canônico/replayável byte-identical; mutation checks R2 e Rust quality/unit regression PASS. Jobs de produção/hardware, Rust workspace e documentation patch hygiene SKIPPED.
 - FUP-01 permanece PARCIAL: `Failed`/efeitos parciais, projeção de `Superseded`, claim experimental sem W e invariantes globais de watermark ainda precisam de crosswalk explícito.
+
+
+### FUP-01 — invariantes globais de lifecycle/watermark (28/11/2026; CI pendente)
+
+- R2 test_claimed_and_processed_deadlines_require_closed_watermark exige W fechado cobrindo D para Claimed, Dispatched, Completed e Failed. R2 test_scheduled_deadline_behind_closed_watermark_is_rejected_by_all_operations exige rejeição atômica nas oito operações aplicáveis a uma agenda inconsistente.
+- Auditoria encontrou que P-D validava Scheduled <= W globalmente, mas não validava Claimed/Dispatched/Completed sem W ou além de W em todas as operações. Corrigido no HEAD 6aff7eef55ca7aa9b35eca83e58f841512c7759b com validação central e preservação do código InvariantViolation.
+- Teste diferencial novo: test_p_d_w05_claimed_and_processed_states_require_closed_watermark_on_every_operation; inclui W ausente e W=9 para D=10, cobrindo publish/cancel/arbitrate/close/dispatch/complete/replace e atomicidade.
+- CI #46187809471 ainda IN PROGRESS no momento da atualização; não considerar validado até SUCCESS Linux/Windows no SHA exato.
+- Failed continua sem representação em P-D; não foi adicionado estado artificial sem ledger/recuperação. FUP-01 continua PARCIAL.
