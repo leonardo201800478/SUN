@@ -171,5 +171,40 @@ class PdR2SnapshotProjectionTests(unittest.TestCase):
         self.assertIsNone(result.projection)
 
 
+    def test_r2_deadline_states_without_p_d_counterparts_remain_unrepresented(self):
+        p_d_states = {
+            DeadlineState.SCHEDULED,
+            DeadlineState.CANCELLED,
+            DeadlineState.SUPERSEDED,
+            DeadlineState.CLAIMED,
+            DeadlineState.COMPLETED,
+        }
+        self.assertEqual(
+            set(DeadlineState) - p_d_states,
+            {DeadlineState.DISPATCHED, DeadlineState.FAILED},
+        )
+
+    def test_r2_unknown_int_ack_cut_is_unsupported_without_artifact_or_mutation(self):
+        state = MachineState(
+            profile="SMS-NTSC",
+            model_version="R1-0.3.18",
+            domains=(),
+            watermark=None,
+            deadlines=(),
+            transactions=(),
+            interrupts=InterruptRecord(
+                acknowledge_active=True,
+                device_effect_presence=AckPresence.UNKNOWN,
+                device_effect_commit=AckCommit.UNKNOWN,
+            ),
+            input_cursor=0,
+        )
+        captured = r2_capture(state)
+        self.assertEqual(captured.code, SnapshotCode.UNSUPPORTED)
+        self.assertIs(captured.active_state, state)
+        self.assertIsNone(captured.artifact)
+        self.assertIsNone(captured.restored_state)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
