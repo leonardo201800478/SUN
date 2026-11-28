@@ -91,10 +91,22 @@ class AgendaParticipant:
 
 
 @dataclass(frozen=True)
+class AgendaObligation:
+    """Known causal boundary that must not be crossed while unresolved."""
+
+    identity: str
+    owner: str
+    at_common: Fraction
+    resolved: bool = False
+    commutative: bool = False
+
+
+@dataclass(frozen=True)
 class AgendaContext:
     participants: tuple[AgendaParticipant, ...]
     expected_participants: frozenset[str]
     watermark_common: Fraction | None = None
+    obligations: tuple[AgendaObligation, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -180,6 +192,7 @@ def _context_view(
         not isinstance(context, AgendaContext)
         or type(context.participants) is not tuple
         or type(context.expected_participants) is not frozenset
+        or type(context.obligations) is not tuple
         or any(not isinstance(item, str) or not item.strip()
                for item in context.expected_participants)
         or (
@@ -190,6 +203,19 @@ def _context_view(
         return AgendaCode.INVALID_INPUT, "invalid temporal context", {}, Fraction(0), Fraction(0)
     if context.watermark_common != state.watermark_common:
         return AgendaCode.INDETERMINATE, "context watermark differs from agenda watermark", {}, Fraction(0), Fraction(0)
+    obligation_ids = set()
+    for item in context.obligations:
+        if (
+            not isinstance(item, AgendaObligation)
+            or not isinstance(item.identity, str) or not item.identity.strip()
+            or not isinstance(item.owner, str) or not item.owner.strip()
+            or not _exact(item.at_common)
+            or type(item.resolved) is not bool
+            or type(item.commutative) is not bool
+            or item.identity in obligation_ids
+        ):
+            return AgendaCode.INVALID_INPUT, "invalid or duplicate causal obligation", {}, Fraction(0), Fraction(0)
+        obligation_ids.add(item.identity)
     if not context.expected_participants:
         return AgendaCode.BLOCKED, "expected participant set is empty", {}, Fraction(0), Fraction(0)
     participants: dict[str, AgendaParticipant] = {}
@@ -218,6 +244,16 @@ def _context_view(
     safe = min(item.safe_horizon_common for item in participants.values())
     if safe < frontier:
         return AgendaCode.INVARIANT_VIOLATION, "safe horizon is behind the admission frontier", participants, frontier, safe
+    if context.watermark_common is not None and any(
+        not item.resolved and item.at_common <= context.watermark_common
+        for item in context.obligations
+    ):
+        return AgendaCode.INVARIANT_VIOLATION, "unresolved obligation is at or behind the confirmed watermark", participants, frontier, safe
+    if any(
+        not item.resolved and item.at_common < frontier
+        for item in context.obligations
+    ):
+        return AgendaCode.INVARIANT_VIOLATION, "unresolved obligation lies behind the admission frontier", participants, frontier, safe
     return None, "", participants, frontier, safe
 
 
