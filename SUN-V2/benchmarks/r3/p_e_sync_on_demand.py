@@ -104,9 +104,24 @@ def _validate(state: object) -> str | None:
         ):
             return "invalid or duplicated transition descriptor"
         transition_ids.add(transition.identity)
+    transition_by_id = {item.identity: item for item in state.transitions}
     for transition in state.transitions:
         if any(item not in transition_ids for item in transition.depends_on):
             return "transition dependency does not exist"
+        if any(
+            transition_by_id[item].at_common > transition.at_common
+            for item in transition.depends_on
+        ):
+            return "causal predecessor is later than its dependent transition"
+    observed_set = set(state.observed) if type(state.observed) is tuple and all(
+        isinstance(item, str) for item in state.observed
+    ) else set()
+    if any(
+        dependency not in observed_set
+        for identity in observed_set
+        for dependency in transition_by_id[identity].depends_on
+    ):
+        return "observed transition is missing an observed predecessor"
     if type(state.observed) is not tuple or any(
         not isinstance(item, str) or item not in transition_ids
         for item in state.observed
@@ -120,8 +135,8 @@ def _validate(state: object) -> str | None:
     for item in state.constraints:
         if (
             not isinstance(item, SyncConstraint)
-            or item.first_id not in transition_ids
-            or item.second_id not in transition_ids
+            or not isinstance(item.first_id, str) or item.first_id not in transition_ids
+            or not isinstance(item.second_id, str) or item.second_id not in transition_ids
             or item.first_id == item.second_id
             or not isinstance(item.relation, PairRelation)
         ):
@@ -257,6 +272,8 @@ def synchronize(
     if any(target < domains[item].progress for item in selected_domains):
         return SyncResult(state, SyncCode.LATE_INPUT, detail="target is behind a causal participant")
     frontier = min(target, *(domains[item].safe_horizon for item in selected_domains))
+    if any(frontier < domains[item].progress for item in selected_domains):
+        return SyncResult(state, SyncCode.INVALID_INPUT, detail="causal safe horizon regresses an existing participant")
     pending = [
         item for item in state.transitions
         if item.identity in selected_transitions
