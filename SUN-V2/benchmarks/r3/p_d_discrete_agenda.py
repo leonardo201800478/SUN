@@ -6,7 +6,7 @@ All temporal coordinates are exact; insertion order never resolves UNKNOWN ties.
 from __future__ import annotations
 
 import heapq
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from fractions import Fraction
 
@@ -109,6 +109,7 @@ class AgendaState:
     watermark_common: Fraction | None = None
     pending_cancellations: tuple[AgendaCancellation, ...] = ()
     max_microsteps: int = 32
+    transactions: TransactionBook = TransactionBook()
 
 
 @dataclass(frozen=True)
@@ -245,6 +246,20 @@ def _find(state: AgendaState, identity: str, generation: int) -> AgendaEvent | N
     )
 
 
+def apply_transaction(
+    state: AgendaState, operation: Callable, *args, **kwargs
+) -> tuple[AgendaState, TxResult]:
+    """Apply one shared W08 operation and carry its immutable book in P-D state."""
+    if not callable(operation):
+        result = TxResult(
+            TxCode.INVALID_INPUT, state.transactions,
+            detail="transaction operation must be callable",
+        )
+        return state, result
+    result = operation(state.transactions, *args, **kwargs)
+    return replace(state, transactions=result.book), result
+
+
 def _replace(state: AgendaState, updated: AgendaEvent) -> AgendaState:
     """Replace one event record without mutating the original state."""
     events = tuple(
@@ -255,7 +270,7 @@ def _replace(state: AgendaState, updated: AgendaEvent) -> AgendaState:
     return AgendaState(
         state.heap, events, state.constraints, state.max_events,
         state.watermark_common, state.pending_cancellations,
-        state.max_microsteps,
+        state.max_microsteps, state.transactions,
     )
 
 
@@ -267,6 +282,9 @@ def _validate(state: object) -> str | None:
         return "max_events must be a positive integer"
     if type(state.max_microsteps) is not int or state.max_microsteps <= 0:
         return "max_microsteps must be a positive integer"
+    invalid_transactions = _validate_book(state.transactions)
+    if invalid_transactions is not None:
+        return "invalid transaction book: " + invalid_transactions
     if state.watermark_common is not None and not _exact(state.watermark_common):
         return "watermark must be an exact coordinate"
     if type(state.pending_cancellations) is not tuple:
@@ -678,7 +696,7 @@ def arbitrate_cancellations(state: AgendaState) -> AgendaResult:
     )
     updated = AgendaState(
         state.heap, events, state.constraints, state.max_events,
-        state.watermark_common, (), state.max_microsteps,
+        state.watermark_common, (), state.max_microsteps, state.transactions,
     )
     return AgendaResult(updated, AgendaCode.ACCEPTED, detail="pending cancellations arbitrated")
 
@@ -707,7 +725,7 @@ def cancel(state: AgendaState, identity: str, generation: int) -> AgendaResult:
     updated = AgendaState(
         tuple(heap), updated.events, updated.constraints, updated.max_events,
         updated.watermark_common, updated.pending_cancellations,
-        updated.max_microsteps,
+        updated.max_microsteps, updated.transactions,
     )
     return AgendaResult(updated, AgendaCode.CANCELLED, updated_event)
 
