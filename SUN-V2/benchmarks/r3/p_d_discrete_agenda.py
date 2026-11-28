@@ -108,6 +108,7 @@ class AgendaState:
     max_events: int = 4096
     watermark_common: Fraction | None = None
     pending_cancellations: tuple[AgendaCancellation, ...] = ()
+    max_microsteps: int = 32
 
 
 @dataclass(frozen=True)
@@ -185,6 +186,7 @@ def _replace(state: AgendaState, updated: AgendaEvent) -> AgendaState:
     return AgendaState(
         state.heap, events, state.constraints, state.max_events,
         state.watermark_common, state.pending_cancellations,
+        state.max_microsteps,
     )
 
 
@@ -194,6 +196,8 @@ def _validate(state: object) -> str | None:
         return "invalid agenda state"
     if type(state.max_events) is not int or state.max_events <= 0:
         return "max_events must be a positive integer"
+    if type(state.max_microsteps) is not int or state.max_microsteps <= 0:
+        return "max_microsteps must be a positive integer"
     if state.watermark_common is not None and not _exact(state.watermark_common):
         return "watermark must be an exact coordinate"
     if type(state.pending_cancellations) is not tuple:
@@ -212,7 +216,8 @@ def _validate(state: object) -> str | None:
             or not _exact(event.at_common)
             or type(event.generation) is not int or event.generation < 0
             or not isinstance(event.status, EventStatus)
-            or type(event.microstep) is not int or event.microstep < 0
+            or type(event.microstep) is not int
+            or event.microstep < 0 or event.microstep > state.max_microsteps
             or (event.phase_order is not None and type(event.phase_order) is not int)
             or (event.phase_evidence is not None and (
                 not isinstance(event.phase_evidence, str) or not event.phase_evidence.strip()
