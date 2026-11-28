@@ -435,6 +435,17 @@ def _validate(state: object) -> str | None:
             )
         ):
             return "pending cancellation and event record disagree"
+    active_statuses = {
+        EventStatus.SCHEDULED,
+        EventStatus.CANCEL_PENDING,
+        EventStatus.CLAIMED,
+    }
+    if any(
+        event.generation < max_generation[event.identity]
+        and event.status in active_statuses
+        for event in state.events
+    ):
+        return "older event generation remains active after a newer generation"
     for event in state.events:
         if event.status is EventStatus.CANCEL_PENDING and (
             event.identity, event.generation
