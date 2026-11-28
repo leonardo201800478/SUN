@@ -80,6 +80,7 @@ The bridge's `audit_recovery_boundary()` returns `IncomparableRecovery` and reco
 | WAIT/TW lifecycle | R2-T08/T09 | Shared transaction tests and W08 fixtures | **Covered** for modeled automatic TW, external TW and WAIT sources; not a hardware timing claim |
 | Resource capacity/reservation | R2-T15 `test_resource.py` (10 cases) | R3 ResourceLedger tests (5) and bridge tests (capacity boundary + retry) | **Covered** for explicit abstract budget semantics |
 | Bridge reserve + submit atomicity | R2 ResourceLedger and TransactionBook independently | `test_reservation_and_transaction_admission_are_atomic_at_capacity` | **Covered** for fixture-supplied mapping/amount and one-transaction scope |
+| Composite bridge invariant rejection | R2-T15 no-partial-mutation principles | `test_composite_mapping_and_ledger_invariants_reject_atomically` (5 malformed composite-state subcases) | **Covered** for missing/incorrect marker mapping, reservation identity mismatch, pending-effect mismatch and unmatched resource failure; every rejection preserves the exact input composite state |
 | Marker/effect commit atomicity | R2 separate ledgers | `test_commit_marker_and_resource_effect_commit_exactly_once` | **Covered** for selected mapping |
 | Partial failure | R2-T08/T15 partial prefix/suffix tests | `test_partial_failure_preserves_matching_committed_prefix_and_pending_suffix` | **Covered** for selected fixture |
 | Recovery composition | R2 TransactionBook and ResourceLedger recovery have distinct contracts | `test_transaction_and_resource_recovery_are_explicitly_incomparable` | **Incomparable by design; not closed** |
@@ -91,6 +92,9 @@ The bridge's `audit_recovery_boundary()` returns `IncomparableRecovery` and reco
 - PR #1293 initial composition HEAD `7d4eb4dbaa729a49a588fe4f7bbbcf8e4742efa5`, CI #11289 SUCCESS: R3 282/282 Linux and Windows; P-A 186/186 per OS; R2 independent 256/256 Linux; R2 Python 256/256 Windows; mutation checks, corpus equivalence and Rust quality/unit regression passed.
 - Correction HEAD `354d2a5da7b5d12885ade6f045de8387f309acde`, CI #46173011966 SUCCESS: R2 independent Linux, R2 Python Windows, R3 Linux/Windows, canonical/replayable corpus equivalence and Rust quality/unit regression passed.
 - The correction validates malformed retry descriptor ordering: `spec=None` returns InvalidInput before reading `spec.identity`; composite state remains unchanged.
+- Production SMS/Z80/VDP/PSG/YM2413/CPAL/SDL3/Slint/WGPU/scheduler jobs were SKIPPED, not PASS.
+- Expanded bridge HEAD `f5179cd1383ec9734e781de281211be669023cd2`, CI #46174810003 SUCCESS: R3 suite 284 tests Linux/Windows; R2 independent Linux and R2 Python Windows; canonical/replayable corpus Linux/Windows equivalence; Rust quality/unit regression all passed.
+- Added five malformed-composite subcases to verify `_validate_state` rejects mismatched marker/effect mapping, reservation identity, pending effect set and failure state without mutating the composite state.
 - Production SMS/Z80/VDP/PSG/YM2413/CPAL/SDL3/Slint/WGPU/scheduler jobs were SKIPPED, not PASS.
 
 ## 8. Remaining FUP-03 work
