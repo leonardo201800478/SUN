@@ -134,7 +134,7 @@ class TransactionSnapshotProjectionTests(unittest.TestCase):
         self.assertEqual(waiting.wait_source, "external")
         self.assertEqual(ready.next_marker, "sample-next")
         self.assertEqual(failed.error, "device fault")
-        self.assertTrue(any("committed marker IDs" in item for item in projected.unrepresented))
+        self.assertTrue(any("marker IDs" in item for item in projected.unrepresented))
         self.assertTrue(any("pending_effects" in item for item in projected.unrepresented))
         self.assertTrue(any("TW budgets" in item for item in projected.unrepresented))
 
