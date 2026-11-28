@@ -133,8 +133,15 @@ class SyncState:
         if not self._commutative_groups and self.transitions:
             by_time: dict[Fraction, list[SyncTransition]] = {}
             for item in self.transitions:
-                if isinstance(item, SyncTransition):
-                    by_time.setdefault(item.at_common, []).append(item)
+                if (
+                    isinstance(item, SyncTransition)
+                    and isinstance(item.identity, str)
+                    and isinstance(item.owner, str)
+                    and _exact(item.at_common)
+                    and type(item.depends_on) is tuple
+                    and all(isinstance(value, str) for value in item.depends_on)
+                ):
+                    by_time.setdefault(Fraction(item.at_common), []).append(item)
             cached_groups = {}
             for group in by_time.values():
                 if len(group) < 2:
