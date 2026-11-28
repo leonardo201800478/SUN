@@ -265,3 +265,21 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 - A ponte é restrita a uma transação por estado experimental. Não define capacidade de hardware, custo por transação, bytes, ciclos ou limite de armazenamento do TransactionBook.
 - Recovery foi auditado como **IncomparableRecovery**: TransactionBook.recover retoma InProgress preservando markers pendentes; ResourceLedger.recover termina o ledger e commita efeitos pendentes. A auditoria não muta o estado e não aplica ambos os recovery paths.
 - **FUP-03 permanece PARCIAL:** ainda falta decidir se um limite de armazenamento do TransactionBook é necessário como orçamento interno de implementação, separado de hardware; recovery composto não tem semântica equivalente demonstrada; generation replacement do TransactionBook não é inferido.
+
+
+### Consolidação FUP-01 — matriz de rastreabilidade W05 (28/11/2026)
+
+- Criada `SUN-V2/docs/temporal-core/R3_FUP01_W05_TRACEABILITY.md`, com crosswalk dos 78 métodos R2-T06 e dos 10 casos R2-T15 de atomicidade, classificando cada grupo como Direct, Partial, Absent ou Out of scope.
+- A matriz separa correspondência P-A/R2 explicitamente testada de comparação P-D↔P-A; não trata o P-A como prova física nem promove phase metadata sintética a evidência de hardware.
+- Gaps explícitos incluem validação estrutural de livros/containers malformados, owner/participant e watermark mismatch em alguns caminhos, invalid clock conversion precedence, preconstructed pending cancellation, lifecycle invariants em todas as operações e fronteiras combinadas W/microstep.
+- Casos T15 de ResourceLedger, TransactionBook e snapshot/IRQ acknowledge permanecem em W08/W09/T11, sem serem artificialmente incorporados a W05.
+- **FUP-01 continua PARCIAL.** A matriz organiza a cobertura existente; não afirma equivalência integral dos 78 casos T06 nem fecha os gaps identificados.
+- Documento criado na branch `research/chronos-r3-follow-up`, commit `f45fd226b445a91ce4a9c458c864ce5ce45e7312`. A atualização deste backlog registra o link; testes Rust não são aplicáveis a esta alteração documental.
+
+### Atualização de validação W08 — PR #1293 (28/11/2026)
+
+- Corrigida a ordem de validação em `transaction_resource_bridge.py`: `_validate_spec(spec)` agora ocorre antes do acesso a `spec.identity` quando já existe transação.
+- Adicionado `test_malformed_retry_descriptor_is_rejected_before_identity_access`: retry com `spec=None` deve retornar `InvalidInput` e preservar exatamente o estado composto.
+- Commit: `354d2a5da7b5d12885ade6f045de8387f309acde`; CI #46173011966 [SUCCESS](https://github.com/leonardo201800478/SUN/actions/runs/46173011966). R2 independente Linux, R2 Python Windows, R3 Linux/Windows, corpora canônico/replayável equivalentes e Rust quality/unit regression: PASS.
+- Jobs de produção SMS/Z80/VDP/PSG/YM2413/CPAL/SDL3/Slint/WGPU/scheduler: SKIPPED, não PASS.
+- Finding P2 da revisão continua aberto no GitHub até confirmação/revisão; a correção está validada pela CI, mas não foi marcado como resolvido por automação.
