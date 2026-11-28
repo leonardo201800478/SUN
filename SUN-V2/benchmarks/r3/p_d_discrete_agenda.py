@@ -450,6 +450,8 @@ def publish(
         ))
     ):
         return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="invalid publish descriptor")
+    if microstep > state.max_microsteps:
+        return AgendaResult(state, AgendaCode.RESOURCE_EXHAUSTED, detail="microstep limit exceeded")
     if (
         state.watermark_common is not None
         and Fraction(at_common) <= state.watermark_common
