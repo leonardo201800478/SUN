@@ -512,5 +512,91 @@ class W05ReplayableCancellationRaceTests(unittest.TestCase):
         )
 
 
+    def test_w05_watermark_may_pass_c_before_arbitration_but_not_d(self):
+        context = ADeadlineContext(
+            participants=(
+                AParticipant("cpu", Fraction(0), Fraction(100)),
+                AParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            expected_participants=frozenset({"cpu", "vdp"}),
+        )
+        operations = (
+            {
+                "sequence": 0, "name": "publish",
+                "args": {
+                    "owner": "cpu", "identity": "watermark-before-d",
+                    "generation": 0, "at_common": Fraction(10),
+                    "effect_id": "effect-watermark",
+                },
+            },
+            {
+                "sequence": 1, "name": "cancel",
+                "args": {
+                    "owner": "cpu", "identity": "watermark-before-d",
+                    "generation": 0, "at_common": Fraction(8),
+                },
+            },
+            {
+                "sequence": 2, "name": "close_watermark",
+                "args": {"target_common": Fraction(9)},
+            },
+            {
+                "sequence": 3, "name": "arbitrate_cancellations",
+                "args": {},
+            },
+            {
+                "sequence": 4, "name": "close_watermark",
+                "args": {"target_common": Fraction(10)},
+            },
+        )
+        fixture = capture_differential_fixture(
+            fixture_id="W05_WATERMARK_CROSSES_C_BUT_NOT_D_BEFORE_ARBITRATION",
+            provenance={
+                "gate": "R3",
+                "workload": "W05",
+                "classification": "OBSERVATION",
+                "scenario": (
+                    "An admitted C<D cancellation may remain pending while W "
+                    "advances beyond C but below D; arbitration is required "
+                    "before W crosses D."
+                ),
+                "scope": "synthetic P-A/R2 cancellation and watermark comparison",
+                "limitations": (
+                    "No physical SMS cancellation source, event ordering, "
+                    "deadline hardware or profile phase is established."
+                ),
+                "contract": "R1 v0.3.18; R2-T06",
+            },
+            initial_state=_state_data(context, ADeadlineBook()),
+            operations=operations,
+            left_step=_p_a_step,
+            right_step=_r2_step,
+        )
+        record_replayable_fixture(fixture)
+
+        self.assertTrue(fixture["all_equal"])
+        self.assertIsNone(fixture["first_divergence"])
+        self.assertEqual(len(fixture["cuts"]), 5)
+        pending = fixture["cuts"][1]["left_state"]
+        self.assertEqual(pending["code"], ADeadlineCode.ACCEPTED.value)
+        self.assertEqual(len(pending["state"]["pending_cancellations"]), 1)
+
+        crossed_c = fixture["cuts"][2]["left_state"]
+        self.assertEqual(crossed_c["code"], ADeadlineCode.ACCEPTED.value)
+        self.assertEqual(_fraction(crossed_c["state"]["watermark_common"]), Fraction(9))
+        self.assertEqual(len(crossed_c["state"]["pending_cancellations"]), 1)
+
+        arbitrated = fixture["cuts"][3]["left_state"]
+        self.assertEqual(arbitrated["code"], ADeadlineCode.ACCEPTED.value)
+        self.assertEqual(arbitrated["state"]["pending_cancellations"], [])
+        self.assertEqual(
+            arbitrated["state"]["deadlines"][0]["status"],
+            ADeadlineStatus.CANCELLED.value,
+        )
+
+        crossed_d = fixture["cuts"][4]["left_state"]
+        self.assertEqual(crossed_d["code"], ADeadlineCode.ACCEPTED.value)
+        self.assertEqual(_fraction(crossed_d["state"]["watermark_common"]), Fraction(10))
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
