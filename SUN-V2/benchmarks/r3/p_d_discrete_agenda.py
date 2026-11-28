@@ -26,6 +26,7 @@ class AgendaCode(str, Enum):
 class EventStatus(str, Enum):
     SCHEDULED = "Scheduled"
     CANCELLED = "Cancelled"
+    CANCEL_PENDING = "CancelPending"
     SUPERSEDED = "Superseded"
     CLAIMED = "Claimed"
     COMPLETED = "Completed"
@@ -74,12 +75,39 @@ class AgendaConstraint:
 
 
 @dataclass(frozen=True)
+class AgendaParticipant:
+    identity: str
+    progress_common: Fraction
+    safe_horizon_common: Fraction
+
+
+@dataclass(frozen=True)
+class AgendaContext:
+    participants: tuple[AgendaParticipant, ...]
+    expected_participants: frozenset[str]
+    watermark_common: Fraction | None = None
+
+
+@dataclass(frozen=True)
+class AgendaCancellation:
+    identity: str
+    generation: int
+    owner: str
+    at_common: Fraction
+    microstep_level: int | None = None
+    phase_order: int | None = None
+    phase_evidence: str | None = None
+    phase_basis: AgendaPhaseBasis | None = None
+
+
+@dataclass(frozen=True)
 class AgendaState:
     heap: tuple[tuple[Fraction, str, int], ...] = ()
     events: tuple[AgendaEvent, ...] = ()
     constraints: tuple[AgendaConstraint, ...] = ()
     max_events: int = 4096
     watermark_common: Fraction | None = None
+    pending_cancellations: tuple[AgendaCancellation, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -156,7 +184,7 @@ def _replace(state: AgendaState, updated: AgendaEvent) -> AgendaState:
     )
     return AgendaState(
         state.heap, events, state.constraints, state.max_events,
-        state.watermark_common,
+        state.watermark_common, state.pending_cancellations,
     )
 
 
