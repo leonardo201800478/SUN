@@ -348,29 +348,33 @@ class CandidateDifferentialTests(unittest.TestCase):
         names = frozenset(("cpu", "vdp"))
         cases = (
             (
-                (AParticipant("cpu", Fraction(5), Fraction(4), Fraction(1), Fraction(0)),
-                 AParticipant("vdp", Fraction(0), Fraction(20), Fraction(1), Fraction(0))),
-                (AgendaParticipant("cpu", Fraction(5), Fraction(4)),
-                 AgendaParticipant("vdp", Fraction(0), Fraction(20))),
-            ),
-            (
                 (AParticipant("cpu", Fraction(5), Fraction(10), Fraction(1), Fraction(0)),
                  AParticipant("vdp", Fraction(0), Fraction(4), Fraction(1), Fraction(0))),
                 (AgendaParticipant("cpu", Fraction(5), Fraction(10)),
                  AgendaParticipant("vdp", Fraction(0), Fraction(4))),
+                None,
+            ),
+            (
+                (AParticipant("cpu", Fraction(0), Fraction(5), Fraction(1), Fraction(0)),
+                 AParticipant("vdp", Fraction(0), Fraction(8), Fraction(1), Fraction(0))),
+                (AgendaParticipant("cpu", Fraction(0), Fraction(5)),
+                 AgendaParticipant("vdp", Fraction(0), Fraction(8))),
+                Fraction(6),
             ),
         )
-        for index, (pa_participants, pd_participants) in enumerate(cases):
+        for index, (pa_participants, pd_participants, watermark) in enumerate(cases):
             with self.subTest(case=index):
-                pa_context = ADeadlineContext(pa_participants, names)
-                pd_context = AgendaContext(pd_participants, names)
+                pa_context = ADeadlineContext(
+                    pa_participants, names, watermark_common=watermark
+                )
+                pd_context = AgendaContext(pd_participants, names, watermark)
                 pa = p_a_publish_deadline(
-                    ADeadlineBook(), pa_context, owner="cpu",
+                    ADeadlineBook(watermark_common=watermark), pa_context, owner="cpu",
                     identity=f"w05-safe-{index}", generation=0,
                     at_common=Fraction(10), effect_id="effect",
                 )
                 pd = p_d_publish_with_context(
-                    AgendaState(), pd_context, owner="cpu",
+                    AgendaState(watermark_common=watermark), pd_context, owner="cpu",
                     identity=f"w05-safe-{index}", generation=0,
                     at_common=Fraction(10), effect_id="effect",
                 )
