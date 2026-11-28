@@ -162,6 +162,75 @@ def _phase_relation(first: AgendaEvent, second: AgendaEvent) -> PairRelation:
     )
 
 
+def _context_view(
+    state: AgendaState, context: AgendaContext
+) -> tuple[AgendaCode | None, str, dict[str, AgendaParticipant], Fraction, Fraction]:
+    """Validate the participant contract and derive admission/safe frontiers."""
+    if (
+        not isinstance(context, AgendaContext)
+        or type(context.participants) is not tuple
+        or type(context.expected_participants) is not frozenset
+        or any(not isinstance(item, str) or not item.strip()
+               for item in context.expected_participants)
+        or (
+            context.watermark_common is not None
+            and not _exact(context.watermark_common)
+        )
+    ):
+        return AgendaCode.INVALID_INPUT, "invalid temporal context", {}, Fraction(0), Fraction(0)
+    if context.watermark_common != state.watermark_common:
+        return AgendaCode.INDETERMINATE, "context watermark differs from agenda watermark", {}, Fraction(0), Fraction(0)
+    if not context.expected_participants:
+        return AgendaCode.BLOCKED, "expected participant set is empty", {}, Fraction(0), Fraction(0)
+    participants: dict[str, AgendaParticipant] = {}
+    for item in context.participants:
+        if (
+            not isinstance(item, AgendaParticipant)
+            or not isinstance(item.identity, str) or not item.identity.strip()
+            or not _exact(item.progress_common)
+            or not _exact(item.safe_horizon_common)
+            or item.safe_horizon_common < item.progress_common
+            or item.identity in participants
+        ):
+            return AgendaCode.INVALID_INPUT, "invalid or duplicate participant", {}, Fraction(0), Fraction(0)
+        if item.identity not in context.expected_participants:
+            return AgendaCode.INVALID_INPUT, "undeclared participant", {}, Fraction(0), Fraction(0)
+        participants[item.identity] = item
+    missing = context.expected_participants - participants.keys()
+    if missing:
+        return AgendaCode.BLOCKED, "required participant progress is incomplete", participants, Fraction(0), Fraction(0)
+    progress = max(item.progress_common for item in participants.values())
+    frontier = max(
+        progress,
+        context.watermark_common if context.watermark_common is not None else progress,
+    )
+    safe = min(item.safe_horizon_common for item in participants.values())
+    if safe < frontier:
+        return AgendaCode.INDETERMINATE, "safe horizon is behind the admission frontier", participants, frontier, safe
+    return None, "", participants, frontier, safe
+
+
+def _cancellation_precedes(
+    request: AgendaCancellation, deadline: AgendaEvent
+) -> bool | None:
+    """Return whether a same-instant cancellation is proven before its deadline."""
+    if request.microstep_level is not None:
+        if request.microstep_level != deadline.microstep:
+            return request.microstep_level < deadline.microstep
+    if (
+        request.phase_order is not None
+        and request.phase_evidence is not None
+        and request.phase_basis is not None
+        and deadline.phase_order is not None
+        and deadline.phase_evidence is not None
+        and deadline.phase_basis == request.phase_basis
+        and _valid_phase_basis(request.phase_basis)
+        and request.phase_order != deadline.phase_order
+    ):
+        return request.phase_order < deadline.phase_order
+    return None
+
+
 def _key(event: AgendaEvent) -> tuple[Fraction, str, int]:
     """Return a stable heap key; identity is not a physical phase order."""
     return (event.at_common, event.identity, event.generation)
