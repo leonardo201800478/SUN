@@ -569,6 +569,11 @@ def request_cancel(
         return AgendaResult(state, code, detail=detail)
     if not isinstance(owner, str) or owner not in context.expected_participants:
         return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="cancellation owner is not declared")
+    if (
+        not isinstance(identity, str) or not identity.strip()
+        or type(generation) is not int or generation < 0
+    ):
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="invalid deadline identity or generation")
     if not _exact(at_common):
         return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="cancellation coordinate must be exact")
     if (
