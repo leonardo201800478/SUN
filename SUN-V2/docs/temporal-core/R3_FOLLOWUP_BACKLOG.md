@@ -489,3 +489,11 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 
 - R2/P-A possuem status terminal Failed e o incluem na validação de watermark; suas APIs W05 não definem transição para Failed. P-D não tem o status e não pode espelhar o caso preconstruído Failed.
 - Partial-effect/recovery não será atribuído ao deadline W05: permanece nos contratos ResourceLedger/transaction/snapshot. Não adicionar Failed isoladamente sem contrato de transição e crosswalk.
+
+
+### FUP-01 — Claimed além de W e claim local sem W (28/11/2026)
+
+- P-D classifica Claimed com D>W como InvariantViolation em todas as operações comparáveis. O caso Claimed sem W segue candidate-local e explicitamente não comparável ao claim R2, pois claim_next() precisa permanecer uma primitiva de seleção local; dispatch o rejeita e completion sem dispatch permanece InvalidInput.
+- Teste diferencial atualizado: test_p_d_w05_claimed_and_processed_states_require_closed_watermark_on_every_operation; W=9/D=10 para Claimed, Dispatched e Completed; Claimed/W ausente excluído da paridade.
+- HEAD e8eeb8fdb2fb9e26458d8d358da5d3ee8731081a; CI #46188553676 SUCCESS: R2 258/258 Linux/Windows; R3 317/317 Linux/Windows; corpus emitter 202/202 por OS; corpora canônico/replayável byte-identical; mutation checks e Rust quality/unit regression PASS. Jobs de produção/hardware, Rust workspace e documentation patch hygiene SKIPPED.
+- FUP-01 permanece PARCIAL; não adicionar Failed sem contrato e não promover claim local a claim global.
