@@ -203,3 +203,15 @@ W07 physical remains BLOCKED; W06 physical remains UNKNOWN; P-A is not closed; P
 The seven adversarial findings were addressed in the disposable candidates/tests/docs: snapshot generation identity is keyed by (identity, generation); replay admission uses the snapshot-wide frontier once for the accepted batch; watermark closure no longer infers causality from microstep level; C=D cancellation requires a comparable phase basis; restore requires byte-canonical payloads; W07 pairwise emission has a finite resource limit with boundary/excess tests; and the inventory/source statements were corrected. R1 v0.3.18 and the R2 oracle remain unchanged.
 
 **Limitations unchanged:** W06 physical evidence remains UNKNOWN; W07 physical B/C remains BLOCKED. The W07 candidate is bounded experimental relation adjudication, not a complete hardware cycle model. P-A has no closeout; P-D/P-E remain NOT RUN/BLOCKED; R4/R5 are pending. No production CHRONOS/V2 code or 60 FPS/hardware claim is validated by this Python CI.
+
+
+## Independent review follow-up — three invariant fixes and reproducible Python (pending CI)
+
+The independent final review on PR #1284 identified three defects after CI #11095. The follow-up changes on the current PR branch are:
+
+- W07 transitions now preserve the configured `max_microsteps`. A chained regression test uses a non-default limit of 2, reaches the boundary through successive returned states, and verifies that the next emitted microstep 3 returns `ResourceExhausted` without mutation.
+- Snapshot validation rejects `Scheduled` deadlines at `D <= W`.
+- Snapshot validation permits at most one effect-capable generation per identity. `Scheduled`, `Claimed`, and `Dispatched` are effect-capable; `Failed` remains effect-capable while pending subeffects exist. `Cancelled`, `Superseded`, and `Completed` remain historical terminal records. Capture and restore tests cover replacement while a prior generation is claimed, dispatched, or failed with pending effects.
+- Linux R3 now uses the same pinned Python 3.14.4 setup as Windows; all Linux R3 commands use that setup-python interpreter rather than runner-provided `python3`.
+
+These changes are in disposable R3 candidates/tests and CI only. R1 v0.3.18 and the approved R2 executable oracle are unchanged. **Validation of this new HEAD is pending; CI #11095 does not cover these changes.** W06 physical remains UNKNOWN; W07 physical B/C remains BLOCKED; P-A has no closeout; P-D/P-E remain NOT RUN/BLOCKED; R3 remains in progress; R4/R5 remain pending.
