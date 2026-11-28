@@ -20,6 +20,7 @@ from p_a_deadline_lifecycle import (
     ADeadlineBook,
     ADeadlineCode,
     ADeadlineContext,
+    ADeadline,
     ADeadlineStatus,
     arbitrate_cancellations as p_a_arbitrate_cancellations,
     cancel_deadline as p_a_cancel_deadline,
@@ -341,6 +342,75 @@ class CandidateDifferentialTests(unittest.TestCase):
         pd = p_d_close_watermark(pd_state, Fraction(10), pd_context)
         self.assertEqual(pa.code.value, pd.code.value)
         self.assertEqual(pa.code.value, "Accepted")
+        self.assertEqual(_p_a_w05_state(pa.book), _p_d_w05_state(pd.state))
+
+    def test_p_d_w05_safe_horizon_regression_matches_p_a_taxonomy(self):
+        names = frozenset(("cpu", "vdp"))
+        cases = (
+            (
+                (AParticipant("cpu", Fraction(5), Fraction(4), Fraction(1), Fraction(0)),
+                 AParticipant("vdp", Fraction(0), Fraction(20), Fraction(1), Fraction(0))),
+                (AgendaParticipant("cpu", Fraction(5), Fraction(4)),
+                 AgendaParticipant("vdp", Fraction(0), Fraction(20))),
+            ),
+            (
+                (AParticipant("cpu", Fraction(5), Fraction(10), Fraction(1), Fraction(0)),
+                 AParticipant("vdp", Fraction(0), Fraction(4), Fraction(1), Fraction(0))),
+                (AgendaParticipant("cpu", Fraction(5), Fraction(10)),
+                 AgendaParticipant("vdp", Fraction(0), Fraction(4))),
+            ),
+        )
+        for index, (pa_participants, pd_participants) in enumerate(cases):
+            with self.subTest(case=index):
+                pa_context = ADeadlineContext(pa_participants, names)
+                pd_context = AgendaContext(pd_participants, names)
+                pa = p_a_publish_deadline(
+                    ADeadlineBook(), pa_context, owner="cpu",
+                    identity=f"w05-safe-{index}", generation=0,
+                    at_common=Fraction(10), effect_id="effect",
+                )
+                pd = p_d_publish_with_context(
+                    AgendaState(), pd_context, owner="cpu",
+                    identity=f"w05-safe-{index}", generation=0,
+                    at_common=Fraction(10), effect_id="effect",
+                )
+                self.assertEqual(pa.code.value, "InvariantViolation")
+                self.assertEqual(pd.code.value, pa.code.value)
+                self.assertEqual(_p_a_w05_state(pa.book), _p_d_w05_state(pd.state))
+
+    def test_p_d_w05_cancel_owner_outside_participant_contract_is_blocked(self):
+        names = frozenset(("cpu", "vdp"))
+        pa_context = ADeadlineContext(
+            (
+                AParticipant("cpu", Fraction(0), Fraction(100), Fraction(1), Fraction(0)),
+                AParticipant("vdp", Fraction(0), Fraction(100), Fraction(1), Fraction(0)),
+            ),
+            names,
+        )
+        pd_context = AgendaContext(
+            (
+                AgendaParticipant("cpu", Fraction(0), Fraction(100)),
+                AgendaParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        pa_book = ADeadlineBook(deadlines=(
+            ADeadline("apu", "orphan", 0, Fraction(10), "effect"),
+        ))
+        pd_state = p_d_publish(
+            AgendaState(), identity="orphan", generation=0,
+            owner="apu", at_common=Fraction(10), effect_id="effect",
+        ).state
+        pa = p_a_cancel_deadline(
+            pa_book, pa_context, owner="apu", identity="orphan",
+            generation=0, at_common=Fraction(8),
+        )
+        pd = p_d_request_cancel(
+            pd_state, pd_context, owner="apu", identity="orphan",
+            generation=0, at_common=Fraction(8),
+        )
+        self.assertEqual(pa.code.value, "Blocked")
+        self.assertEqual(pd.code.value, pa.code.value)
         self.assertEqual(_p_a_w05_state(pa.book), _p_d_w05_state(pd.state))
 
     def test_p_d_w05_cancel_admission_and_same_instant_order_match_p_a(self):
