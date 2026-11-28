@@ -149,7 +149,15 @@ class SyncState:
                 valid = True
                 for index, first in enumerate(group):
                     for second in group[index + 1:]:
-                        if _dependency_order(first, second) is not PairRelation.UNKNOWN:
+                        if (
+                            _dependency_order(first, second) is not PairRelation.UNKNOWN
+                            or first.phase_order is not None
+                            or first.phase_evidence is not None
+                            or first.phase_basis is not None
+                            or second.phase_order is not None
+                            or second.phase_evidence is not None
+                            or second.phase_basis is not None
+                        ):
                             valid = False
                             break
                         relation = self._relation_index.get(
