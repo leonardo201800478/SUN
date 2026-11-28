@@ -26,7 +26,7 @@ from r3_candidate_snapshots import (
 )
 from r3_transaction_core import (
     MarkerKind, TransactionBook, TxMarker, TxSpec,
-    cancel, complete, consume_base_time, consume_tw, enter_waiting, fail,
+    cancel, commit_effect, complete, consume_base_time, consume_tw, enter_waiting, fail,
     reach_next_marker, recover, sample_marker, start, submit,
 )
 
@@ -105,11 +105,6 @@ def partial_transaction_book():
     book = accepted(commit_effect(book, "tx-completed", "commit-zero"))
     book = accepted(complete(book, "tx-completed"))
     return book
-
-
-def complete_commit_marker(book, identity):
-    from r3_transaction_core import commit_effect
-    return commit_effect(book, identity, "commit-write")
 
 
 def pending_pd_state():
