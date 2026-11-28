@@ -70,7 +70,7 @@ def partial_transaction_book():
     book = accepted(reach_next_marker(book, "tx-failed", Fraction(1)))
     book = accepted(sample_marker(book, "tx-failed", "sample-status", "0xA5"))
     book = accepted(reach_next_marker(book, "tx-failed", Fraction(2)))
-    book = accepted(complete_commit_marker(book, "tx-failed"))
+    book = accepted(commit_effect(book, "tx-failed", "commit-write"))
     book = accepted(fail(book, "tx-failed", "device failure after partial commit"))
 
     recovered = TxSpec(
