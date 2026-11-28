@@ -419,9 +419,17 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 
 ### FUP-01 — extensão da cobertura estrutural W05 (28/11/2026)
 
-- A PR #1290 adicionou diferencial validado para owner vazio, participant identity duplicada e monotonicidade de geração após cancelamento terminal. O teste de orçamento de microstep em livro pré-construído foi adicionado no HEAD posterior, mas permanece NOT RUN.
+- A PR #1290 adicionou diferencial validado para owner vazio, participant identity duplicada e monotonicidade de geração após cancelamento terminal. O teste de orçamento de microstep em livro pré-construído foi validado no CI #46184430350; a arbitragem de cancelamentos órfãos/owner-mismatched foi validada no CI #46184619141.
 - O CI #46184104289 validou o SHA `3cd5d1dafc79e0a90e7549c1ec50eaa188983aad`: R2 258/258 Linux e Windows; R3 305/305 Linux e Windows; corpus emitter 202/202 por OS; corpus canônico 135 fixtures / 1.525 cuts e replayable 30 fixtures / 143 operações, ambos byte-identical Linux/Windows; mutation checks R2 e Rust quality/unit regression PASS. Jobs de produção/hardware SKIPPED.
 - O commit seguinte `57d44291115a243bf3c67d78c978148adb1dd141` adicionou teste diferencial para microstep acima do limite em livro pré-construído. Nenhum workflow run foi encontrado associado a esse SHA no momento do registro; esse teste permanece NOT RUN e o HEAD não está integralmente validado.
 - `publication_rejects_empty_profile_without_mutation` foi classificado como NOT COMPARABLE: o perfil existe no R2, mas não é representado nos contextos temporais P-A/P-D.
 - O crosswalk registra ainda que P-D `claim_next()` pode produzir `Claimed` sem W fechado e `complete()` transita diretamente de `Claimed` para `Completed`. Isso não é equivalente ao caminho R2/P-A `close_watermark -> dispatch -> complete`; manter como abstração candidate-local/não comparável, sem inferir equivalência.
 - FUP-01 permanece PARCIAL. Não fechar R3, R4 ou R5 com base nesses resultados.
+
+
+### FUP-01 — integridade de cancelamentos pré-construídos (28/11/2026)
+
+- Foi adicionado diferencial P-A/P-D para dois estados estruturalmente inválidos: cancelamento pendente órfão (sem deadline/evento correspondente) e cancelamento cujo owner diverge do owner da geração. A arbitragem deve retornar `InvalidInput` e preservar integralmente o estado.
+- Teste: `test_p_d_w05_arbitration_rejects_orphan_and_owner_mismatched_cancellations`.
+- CI #46184619141 SUCCESS no SHA `b3d48edf2bd5601e5513ef709fb9b79d644d6577`: R2 258/258 Linux e Windows; R3 307/307 Linux e Windows; corpus emitter 202/202 por OS; corpus canônico/replayable byte-identical; mutation checks R2 e Rust quality/unit regression PASS. Jobs de produção/hardware SKIPPED.
+- FUP-01 permanece PARCIAL: ainda faltam decisões/crosswalks para lifecycle `Dispatched`/`Failed`, projeção de `Superseded`, caminho P-D `claim_next()/complete()` sem watermark fechado, e parte da validação estrutural de entradas malformadas.
