@@ -6,7 +6,7 @@
 
 **Máquina inicial:** Sega Master System (SMS)
 
-**Status:** proposta arquitetural consolidada para especificação e prototipagem; **não aprovada para produção**
+**Status:** proposta arquitetural consolidada, em avaliação comparativa no gate R3; **não aprovada para produção**
 
 **Issue:** [#1267 — SUN V2 — R0: pesquisa e especificação do Temporal Core](https://github.com/leonardo201800478/SUN/issues/1267)
 
@@ -16,7 +16,7 @@
 
 O SUN V2 deve investigar e, se os gates forem aprovados, implementar um **núcleo temporal determinístico de híbrido mínimo**.
 
-A proposta não é criar um scheduler que execute cada chip a cada tick, nem uma fila global que represente toda mudança interna do hardware. Também não é permitir que cada dispositivo avance livremente e corrigir a defasagem depois.
+A proposta não é criar um scheduler que execute cada chip a cada tick, nem uma fila global que represente toda mudança interna do hardware. Também não é permitir que cada dispositivo avance livremente e corrigir a defasagem depois. R2 foi aprovado e merged; R3 está ativo para comparar protótipos descartáveis P-A/P-D/P-E sob a semântica normativa R1 e o oráculo R2. A direção híbrida ainda é hipótese, não decisão de produção.
 
 O CHRONOS deve ser a autoridade única sobre:
 
@@ -265,28 +265,27 @@ Cada protótipo exige hipótese, cenário discriminante, métricas e regra de de
 
 ## 12. Plano de execução e gates
 
-**Precedência obrigatória:** a sequência e as condições de passagem de `SUN-V2/PROJECT_INSTRUCTIONS.md` prevalecem sobre este plano arquitetural. A ordem é estrita: R0 → R1 → R2 → R3 → R4 → R5. R2 só começa após aprovação formal de R1; R3 só começa após aprovação de R1 e R2; nenhum código de produção CHRONOS/V2 começa antes de R5. Referências a R2 nesta proposta ou no parecer R0 identificam um gate futuro, não autorização para antecipá-lo.
+**Precedência obrigatória:** a sequência e as condições de passagem de `SUN-V2/PROJECT_INSTRUCTIONS.md` prevalecem sobre este plano arquitetural. A ordem é estrita: R0 → R1 → R2 → R3 → R4 → R5. R1 e R2 estão aprovados; R3 está em andamento nesta branch com protótipos descartáveis e benchmarks equivalentes. A autorização de R3 não aprova a hipótese híbrida nem permite código de produção CHRONOS/V2, que continua condicionado a R5.
 
-### Gate R1 — contratos temporais (em elaboração)
+### Gate R1 — contratos temporais (APROVADO em 24/11/2026)
 
-1. Manter a proveniência de R0 e revisar cada contrato contra as fontes primárias e os limites registrados.
-2. Formalizar pré-condições, pós-condições, proprietários, erros e propriedades verificáveis.
-3. Preservar FACT, OBSERVATION, HYPOTHESIS/INFERENCE e UNKNOWN sem converter hipótese em comportamento físico.
-4. Concluir revisão cruzada e adversarial do contrato, resolver blockers e registrar critérios de saída.
-5. Aprovar R1 formalmente antes de iniciar qualquer trabalho R2.
+1. R0 evidências e proveniência foram registradas em R0_CLOSEOUT.md.
+2. R1 v0.3.18 foi aprovado e publicado pela PR #1281 (merge `88e105d6495f7f5105502e53666a7b0d29f77572`).
+3. Contratos C01–C16, classes de resultado, WAIT, deadlines, causalidade, transações, IRQ/NMI, snapshot/replay e erros estão normatizados.
+4. UNKNOWN e limites da evidência física permanecem preservados.
 
-**Saída:** R1 aprovado na issue #1270 e PR correspondente. Nenhum modelo R2 executável ou protótipo R3 começa antes dessa aprovação.
+**Saída:** R1 APROVADO; gate subsequente R2 foi concluído e também aprovado.
 
-### Gate R2 — modelo de referência independente (somente após R1)
+### Gate R2 — modelo de referência independente (APROVADO; PR #1283 merged)
 
 1. Construir oráculo simples e independente do algoritmo/representação candidata.
 2. Implementar propriedades executáveis de monotonicidade, conversões, chunk invariance, causalidade, deadlines, transações, WAIT, IRQ/NMI e snapshot/replay.
 3. Registrar sementes, perfis, sequências, primeiro ponto divergente e estado mínimo de reprodução.
 4. Manter UNKNOWN físico como restrição/indeterminação; resultado do modelo não vira prova física.
 
-**Saída:** R2 aprovado com propriedades e resultados reproduzíveis. Não iniciar protótipos R3 antes disso.
+**Saída:** R2 aprovado. PR #1283 merged em `main` (merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`); CI #10798 SUCCESS (256/256 Linux e Windows).
 
-### Gate R3 — protótipos descartáveis (somente após R1 e R2)
+### Gate R3 — protótipos descartáveis (EM ANDAMENTO — branch `research/chronos-r3-disposable-prototypes`)
 
 1. Executar P-A, P-D e P-E sob a mesma semântica e cargas representativas.
 2. Implementar P-F somente se os resultados justificarem a combinação híbrida.
@@ -378,6 +377,4 @@ A decisão não é “usar um scheduler híbrido porque parece flexível”. É 
 
 **R0:** aprovado no escopo documental em 2026-11-24; ver R0_CLOSEOUT.md.
 
-**Próximo passo autorizado:** concluir e aprovar formalmente R1. O modelo R2 só pode começar após esse gate; R3 depende de R1 e R2 aprovados.
-
-**Próximo passo não autorizado:** iniciar R2 antes da aprovação R1, antecipar protótipos R3 ou implementar CHRONOS/V2 de produção antes de R5.
+**Estado atual:** R1 e R2 estão aprovados; R3 está em andamento na branch `research/chronos-r3-disposable-prototypes`. Esta fase autoriza exclusivamente protótipos experimentais descartáveis, comparações equivalentes e benchmarks reproduzíveis. Não autoriza crate, runtime, integração permanente ou código de produção CHRONOS/V2. Produção permanece proibida antes de R5.
