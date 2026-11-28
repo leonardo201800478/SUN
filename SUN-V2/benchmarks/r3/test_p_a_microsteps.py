@@ -232,7 +232,7 @@ class PAMicrostepTests(unittest.TestCase):
             self.assertEqual(canonical(closed.state), expected_final)
 
     def test_later_microstep_with_unknown_pair_relation_is_indeterminate(self):
-        future = (AStepObligation("c", "psg", 1, False),)
+        future = (AStepObligation("c", "psg", 1, True),)
         relations = (
             AStepPairConstraint("a", "b", AStepPairRelation.COMMUTATIVE),
         )
@@ -243,7 +243,7 @@ class PAMicrostepTests(unittest.TestCase):
         r2_initial = to_r2(initial)
         parent = process_obligation(
             initial, "a", resolves_obligation=True,
-            emitted=(("c", "psg", False),),
+            emitted=(("c", "psg", True),),
         )
         r2_parent = r2_process_obligation(
             r2_initial, "a", resolves_obligation=True,
