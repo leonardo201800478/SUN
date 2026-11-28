@@ -3,7 +3,7 @@
 **Projeto:** SUN V2
 **Sistema inicial:** Sega Master System (SMS)
 **Gate:** R2 — modelo de referência independente
-**Status:** implementação executável R2-T01–T15 concluída; revisão independente do responsável no HEAD `ad8cbbe50a82334b8ee873351dda65b26459e239` sem blocker funcional; dois P2 documentais corrigidos; aprovação explícita R2 registrada, efetivação vinculada ao CI do SHA documental final.
+**Status:** implementação executável R2-T01–T15 concluída; revisão do responsável no HEAD `ad8cbbe50a82334b8ee873351dda65b26459e239` sem blocker funcional; dois P2 documentais corrigidos; CI #10798 SUCCESS no HEAD documental final `a858f8f21caece3567385d64745823c655dbd135`; gate formal R2 aprovado e merged pela PR #1283, merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`.
 **Issue:** [#1282 — modelo de referência independente do CHRONOS](https://github.com/leonardo201800478/SUN/issues/1282)
 **Contrato normativo:** [R1 v0.3.18](R1_TEMPORAL_CONTRACTS.md), conteúdo aprovado no SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, publicado em `main` pelo merge `88e105d6495f7f5105502e53666a7b0d29f77572`
 
@@ -827,4 +827,4 @@ Regressão: `test_causal.py::R2T05CausalSynchronizationTests.test_preapplied_cau
 
 **Revisão Codex:** solicitada explicitamente para o SHA `56d2a85c26fc3f0d7685bb8566af64a445e9b54b`; o conector respondeu `You have reached your Codex usage limits for code reviews`. Portanto R2-EXIT-07 continua PENDENTE. A revisão adversarial interna encontrou e corrigiu a ordenação de irmãos comutativos, ledgers causais pré-aplicados inconsistentes e o vínculo do mutation kill ao AssertionError do teste-alvo; isso não substitui revisão humana externa.
 
-**Decisão:** implementação executável R2-T01–T15 COMPLETA E VALIDADA. Gate formal R2 **NÃO APROVADO** até revisão humana externa independente sem blockers e aprovação explícita do responsável. R3–R5 permanecem BLOQUEADOS; PR #1283 continua Draft, sem merge.
+**Decisão final — 25/11/2026:** implementação executável R2-T01–T15 COMPLETA E VALIDADA; gate formal R2 **APROVADO E MERGED** pela PR #1283, merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`, após CI #10798 SUCCESS e aprovação explícita do responsável. R3 está autorizado exclusivamente para protótipos descartáveis e benchmarks comparáveis. P-A W00–W09 foi validado em CI #10902 (116/116 testes e 351 pontos por OS); equivalência canônica e revisão adversarial permanecem pendentes. R4/R5 permanecem pendentes; nenhum código de produção CHRONOS/V2 antes de R5.
