@@ -186,3 +186,13 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 3. Para P-E, testar separadamente o envelope e os invariantes candidatos; não exigir igualdade de \`SyncState\` com \`MachineState\`.
 4. Adicionar controles R2 de snapshot suportado e \`UnsupportedSnapshot\` para INT-ack UNKNOWN, preservando ausência de artefato e estado ativo.
 5. Reportar explicitamente campos cobertos, não representados e não comparáveis. FUP-04 só fecha com matriz e CI Linux/Windows no SHA exato; não basta round-trip candidato-local.
+
+
+### Atualização de execução — FUP-04 (28/11/2026, 16:47 UTC)
+
+- **PR #1294:** [projeção parcial P-D→R2](https://github.com/leonardo201800478/SUN/pull/1294), Draft, sem merge.
+- **CI #11256:** PASS no SHA `14865f1e29fd8b6c34881e87125e505f6962e6d3`. R2 independente Linux, R2 Python Windows, protótipos R3 Linux/Windows, equivalência dos corpora Linux/Windows e supervisor de qualidade Rust concluíram SUCCESS. Jobs de produção não aplicáveis ficaram SKIPPED.
+- A projeção P-D→R2 cobre somente watermark e identidade/generation/tempo/estado dos deadlines. `CancelPending` é UnsupportedProjection. A passagem pelo `capture/restore` R2 valida apenas o envelope compartilhado projetado; campos P-D ausentes não são tratados como equivalentes a campos R2 vazios.
+- **P-E:** adicionada auditoria explícita do envelope candidato em `pe_r2_snapshot_envelope_audit.py`. Compara somente profile/model_version; mantém candidate e input_cursor como metadados de candidato/harness; declara não mapeados safe_horizon, transições, constraints, observed/indexes, TransactionBook não demonstrado e IRQ/ack. Não cria projeção de `SyncState` para `MachineState`.
+- HEAD ampliado: `b21732fdea95e39cfb90460b5aad3a035495013c`; CI #11258 em execução no momento deste registro: https://github.com/leonardo201800478/SUN/actions/runs/46166975186.
+- **FUP-04 continua PARCIAL.** O round-trip/replay candidato-local P-D/P-E já existe; os testes novos tornam explícitas as fronteiras de comparação R2, mas ainda falta concluir a matriz W09 compartilhada de cortes/efeitos/transações e validar todos os controles de atomicidade/replay contra o escopo realmente comparável. Não declarar equivalência integral nem fechar FUP-04 com base apenas em round-trip.
