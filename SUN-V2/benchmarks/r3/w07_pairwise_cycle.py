@@ -246,6 +246,7 @@ def process(state: PairwiseCycle, requested_id: str, *, emitted: tuple[Obligatio
         constraints=state.constraints,
         resolved=tuple(sorted(state.resolved + (requested_id,))),
         future=remaining_future,
+        max_microsteps=state.max_microsteps,
     )
     return StepResult(
         updated, StepCode.COMPLETE if not pending else StepCode.ADVANCED,
