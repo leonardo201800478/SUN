@@ -6,7 +6,7 @@
 
 **Sistema inicial:** Sega Master System (SMS)
 
-**Status:** análise estratégica; recomendações sujeitas a validação técnica
+**Status:** análise estratégica sujeita à validação técnica; R1 e R2 aprovados; R3 em andamento na branch `research/chronos-r3-disposable-prototypes`. A hipótese híbrida continua NÃO APROVADA para produção; a seleção depende dos resultados P-A/P-D/P-E e dos gates R4/R5.
 
 **Documento relacionado:** [CHRONOS_ARCHITECTURE_EVALUATION.md](CHRONOS_ARCHITECTURE_EVALUATION.md)
 
@@ -32,7 +32,7 @@ A recomendação estratégica é **manter a hipótese híbrida, mas reduzi-la a 
 
 A expressão "autoridade temporal única" não deve ser interpretada como "um objeto central que possui e modifica todo o estado de todos os chips". O Chronos deve possuir o tempo e a política de coordenação; CPU, VDP, PSG, YM2413 e barramentos devem continuar donos de seus estados e invariantes internos. Essa distinção reduz acoplamento e evita transformar o núcleo temporal em um mega-controlador.
 
-**Veredito:** prosseguir com CHRONOS, mas não aprovar ainda o modelo F completo, a estrutura de eventos, a representação numérica ou o contrato final de barramento.
+**Veredito atual:** prosseguir com R3 como comparação experimental P-A/P-D/P-E. Não aprovar modelo F completo, agenda, representação numérica ou contrato final de produção antes de resultados R3 e revisão R4/R5.
 
 ---
 
@@ -428,4 +428,4 @@ As três prioridades mais importantes são:
 
 O Chronos só será uma boa arquitetura se, no fim, for possível explicar seu comportamento, provar suas propriedades, restaurar seu estado e adicionar um novo dispositivo sem reescrever o núcleo.
 
-**Decisão recomendada para a próxima etapa:** atualizar a avaliação arquitetural com o conceito de híbrido mínimo e fechar a matriz de evidências de R0. Não iniciar implementação de produção antes de R5.
+**Decisão vigente:** executar P-A como baseline e comparar P-D/P-E com semântica/fixtures equivalentes. Manter P-F condicional. Nenhum código de produção CHRONOS/V2 antes de R5.

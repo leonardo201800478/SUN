@@ -3,7 +3,7 @@
 **Sistema inicial:** Sega Master System (SMS)
 
 **Arquitetura temporal:** CHRONOS — híbrido mínimo, sujeito aos gates técnicos
-
+**Status:** R0 APROVADO; R1 APROVADO (v0.3.18, PR #1281); R2 APROVADO E MERGED (PR #1283, SHA 18b4352e16cf6ab275c4923a30acc3124754a1b0); R3 EM ANDAMENTO. P-A fechado somente como baseline experimental, com W06/W07 UNKNOWN aceitos como exceções P-A/R2. P-D/P-E têm primeira fatia implementada e diferencial funcional PASS, mas a matriz CI #11145 mostra custo acima de P-A (Linux: median p50 ratio P-D 6,44×, P-E 1,31×; Windows 7,08× e 1,38×). Não selecionar candidato antes de otimizar e validar o restante W05/W08/W09.
 **Estratégia:** componentes mínimos com contratos sólidos; integração vertical de produção somente após R5
 
 **Status:** R0 APROVADO; R1 APROVADO em 24/11/2026 (v0.3.18, PR #1281); R2 APROVADO E MERGED em 25/11/2026 (256/256 Linux/Windows, mutation PASS, CI #10798, merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`); R3 EM ANDAMENTO — CI #11116 no HEAD `3955ddd9ed15d35dbd5bc4c6fabec7c1da0fa667`: 206/206 testes R3 e 256/256 R2 por OS; 351 pontos por OS; corpus canônico 119/1.483 (digest `ab5e146eda37e8292159cc5440beca615c5b511383e3807b24adbacbb490056b`) e replayável 25/134 (digest `6189653bb3aa18fc5805f7dd1ae9708ea31b349d03da7ea9fcc906350cbcfbb6`), equivalência byte a byte Linux/Windows. W06 físico UNKNOWN; W07 relação B/C UNKNOWN, com divergência P-A/R2 preservada. PR #1284 aberta/pronta para revisão, sem review formal; 14 jobs SKIPPED. P-A não fechado; P-D/P-E NOT RUN; R4/R5 pendentes; produção bloqueada até R5.
@@ -109,7 +109,7 @@ Entregas:
 
 ### Fase 3 — protótipos temporais descartáveis (R3)
 
-**Status:** R3 EM ANDAMENTO — CI #11116 no HEAD `3955ddd9ed15d35dbd5bc4c6fabec7c1da0fa667`: 206/206 testes R3 e 256/256 R2 por OS; 351 pontos por OS; corpus canônico 119/1.483 (digest `ab5e146eda37e8292159cc5440beca615c5b511383e3807b24adbacbb490056b`) e replayável 25/134 (digest `6189653bb3aa18fc5805f7dd1ae9708ea31b349d03da7ea9fcc906350cbcfbb6`), equivalência byte a byte Linux/Windows. W06 físico UNKNOWN; W07 relação B/C UNKNOWN, com divergência P-A/R2 preservada. PR #1284 aberta/pronta para revisão, sem review formal; 14 jobs SKIPPED. P-A não fechado; P-D/P-E NOT RUN; R4/R5 pendentes; produção bloqueada até R5.
+**Status:** P-A fechado somente como baseline experimental, com W06/W07 UNKNOWN aceitos como exceções P-A/R2. P-D/P-E têm primeira fatia implementada e diferencial funcional PASS, mas a matriz CI #11145 mostra custo acima de P-A (Linux: median p50 ratio P-D 6,44×, P-E 1,31×; Windows 7,08× e 1,38×). Não selecionar candidato antes de otimizar e validar o restante W05/W08/W09.
 
 Entregas:
 - comparar P-A, P-D e P-E sob semântica, cenários e cargas equivalentes;
@@ -288,4 +288,4 @@ Estado atual:
 - A V1 oferece componentes e auditorias como fonte de conhecimento, mas não será dependência do V2.
 - R0 aprovado no escopo documental; nenhuma implementação de produção autorizada.
 
-**Próxima ação:** concluir a disposição formal dos gaps do oráculo R2 em W06/W07 e a revisão técnica da PR #1284. Manter UNKNOWN onde não houver evidência física; não fabricar fase ou precedência. P-A só poderá fechar com corpus, exceções e critérios de equivalência formalmente aceitos. P-D/P-E permanecem bloqueados até esse closeout; depois avançar para R4 e R5. Nenhum código de produção antes de R5.
+**Próxima ação:** otimizar P-D (heap/índices e validação local) e P-E (índices por domínio/relação e fechamento causal), sem relaxar contratos. Integrar W05 ao P-D e W08/W09 ao P-E; repetir testes diferenciais e benchmark pareado; depois revisão adversarial R4 e decisão R5. Não alterar R1/R2/P-A congelado nem promover código a produção antes de R5.
