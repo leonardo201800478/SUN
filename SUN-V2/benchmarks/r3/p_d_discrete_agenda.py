@@ -6,9 +6,17 @@ All temporal coordinates are exact; insertion order never resolves UNKNOWN ties.
 from __future__ import annotations
 
 import heapq
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from fractions import Fraction
+from typing import Callable
+
+from r3_transaction_core import (
+    TransactionBook,
+    TxCode,
+    TxResult,
+    _validate_book,
+)
 
 
 class AgendaCode(str, Enum):
@@ -109,7 +117,7 @@ class AgendaState:
     watermark_common: Fraction | None = None
     pending_cancellations: tuple[AgendaCancellation, ...] = ()
     max_microsteps: int = 32
-    transactions: TransactionBook = TransactionBook()
+    transactions: TransactionBook = field(default_factory=TransactionBook)
 
 
 @dataclass(frozen=True)
