@@ -34,6 +34,7 @@ from p_d_discrete_agenda import (
     AgendaCode,
     AgendaConstraint,
     AgendaContext,
+    AgendaEvent,
     AgendaObligation,
     AgendaParticipant,
     AgendaState,
@@ -799,6 +800,57 @@ class CandidateDifferentialTests(unittest.TestCase):
         self.assertEqual(_p_a_w05_state(pa_invalid.book), _p_d_w05_state(pd_invalid.state))
         self.assertEqual(pa_invalid.book, pa_first.book)
         self.assertEqual(pd_invalid.state, pd_first.state)
+
+
+    def test_p_d_w05_rejects_older_active_generation_after_newer_terminal_generation(self):
+        names = frozenset(("cpu", "vdp"))
+        pa_context = ADeadlineContext(
+            (
+                AParticipant("cpu", Fraction(0), Fraction(100), Fraction(1), Fraction(0)),
+                AParticipant("vdp", Fraction(0), Fraction(100), Fraction(1), Fraction(0)),
+            ),
+            names,
+        )
+        pd_context = AgendaContext(
+            (
+                AgendaParticipant("cpu", Fraction(0), Fraction(100)),
+                AgendaParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        identity = "w05-invalid-generation-history"
+        pa_book = ADeadlineBook(deadlines=(
+            ADeadline("cpu", identity, 0, Fraction(10), "old-effect"),
+            ADeadline(
+                "cpu", identity, 1, Fraction(20), "new-effect",
+                status=ADeadlineStatus.CANCELLED,
+            ),
+        ))
+        pd_state = AgendaState(
+            heap=((Fraction(10), identity, 0),),
+            events=(
+                AgendaEvent(identity, 0, "cpu", Fraction(10), "old-effect"),
+                AgendaEvent(
+                    identity, 1, "cpu", Fraction(20), "new-effect",
+                    EventStatus.CANCELLED,
+                ),
+            ),
+        )
+        self.assertEqual(_p_a_w05_state(pa_book), _p_d_w05_state(pd_state))
+
+        pa = p_a_cancel_deadline(
+            pa_book, pa_context, owner="cpu", identity=identity,
+            generation=0, at_common=Fraction(5),
+        )
+        pd = p_d_request_cancel(
+            pd_state, pd_context, owner="cpu", identity=identity,
+            generation=0, at_common=Fraction(5),
+        )
+        self.assertEqual(pa.code.value, "InvalidInput")
+        self.assertEqual(pd.code.value, pa.code.value)
+        self.assertEqual(pa.book, pa_book)
+        self.assertEqual(pd.state, pd_state)
+        self.assertEqual(_p_a_w05_state(pa.book), _p_d_w05_state(pd.state))
 
 
     def test_p_d_w05_generation_replacement_preserves_successor_microstep(self):
