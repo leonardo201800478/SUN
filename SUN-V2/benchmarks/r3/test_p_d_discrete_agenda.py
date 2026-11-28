@@ -14,6 +14,7 @@ from p_d_discrete_agenda import (
     PairRelation,
     cancel,
     claim_next,
+    close_watermark,
     complete,
     publish,
 )
@@ -239,6 +240,54 @@ class DiscreteAgendaTests(unittest.TestCase):
         result = claim_next(with_child, Fraction(5))
         self.assertEqual(result.code, AgendaCode.INDETERMINATE)
         self.assertIs(result.state, with_child)
+
+
+    def test_watermark_close_claims_all_due_events_atomically(self):
+        state = AgendaState()
+        for identity, at in (("b", 5), ("a", 5), ("later", 8)):
+            state = publish(
+                state, identity=identity, generation=0, owner="cpu",
+                at_common=Fraction(at), effect_id="e-" + identity,
+            ).state
+        state = AgendaState(
+            state.heap,
+            state.events,
+            (AgendaConstraint("a", "b", PairRelation.COMMUTATIVE),),
+            state.max_events,
+        )
+        result = close_watermark(state, Fraction(6))
+        self.assertEqual(result.code, AgendaCode.ACCEPTED)
+        self.assertEqual(result.claimed, (("a", 0), ("b", 0)))
+        self.assertEqual(result.state.watermark_common, Fraction(6))
+        self.assertEqual(
+            next(item for item in result.state.events if item.identity == "later").status,
+            EventStatus.SCHEDULED,
+        )
+
+    def test_watermark_close_unknown_tie_is_atomic(self):
+        state = AgendaState()
+        for identity in ("a", "b"):
+            state = publish(
+                state, identity=identity, generation=0, owner="cpu",
+                at_common=Fraction(5), effect_id="e-" + identity,
+            ).state
+        result = close_watermark(state, Fraction(5))
+        self.assertEqual(result.code, AgendaCode.INDETERMINATE)
+        self.assertIs(result.state, state)
+        self.assertIsNone(result.state.watermark_common)
+        self.assertEqual(result.claimed, ())
+
+    def test_watermark_is_monotonic_and_rejects_retrograde_publication(self):
+        state = close_watermark(AgendaState(), Fraction(5)).state
+        retrograde = publish(
+            state, identity="late", generation=0, owner="cpu",
+            at_common=Fraction(5), effect_id="late",
+        )
+        self.assertEqual(retrograde.code, AgendaCode.LATE_INPUT)
+        self.assertIs(retrograde.state, state)
+        regression = close_watermark(state, Fraction(4))
+        self.assertEqual(regression.code, AgendaCode.LATE_INPUT)
+        self.assertIs(regression.state, state)
 
     def test_float_coordinate_is_rejected(self):
         result = publish(
