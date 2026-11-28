@@ -36,8 +36,6 @@ from p_e_sync_on_demand import (
 )
 from r3_transaction_core import (
     MarkerKind,
-    TransactionBook,
-    TxCode,
     TxMarker,
     TxSpec,
     cancel,
@@ -104,13 +102,14 @@ class SharedTransactionCoreTests(unittest.TestCase):
             transitions=(),
         )
 
-    def apply(self, pa_operation, r3_operation, *args, **kwargs):
+    def apply(self, pa_operation, r3_operation, *args, r3_args=None, **kwargs):
         pa_result = pa_operation(self.pa_book, *args, **kwargs)
+        candidate_args = args if r3_args is None else r3_args
         self.pd_state, pd_result = pd_apply_transaction(
-            self.pd_state, r3_operation, *args, **kwargs
+            self.pd_state, r3_operation, *candidate_args, **kwargs
         )
         self.pe_state, pe_result = pe_apply_transaction(
-            self.pe_state, r3_operation, *args, **kwargs
+            self.pe_state, r3_operation, *candidate_args, **kwargs
         )
         self.assertEqual(pa_result.code.value, pd_result.code.value)
         self.assertEqual(pa_result.code.value, pe_result.code.value)
@@ -148,9 +147,9 @@ class SharedTransactionCoreTests(unittest.TestCase):
         self.assertEqual(self.pd_state.transactions, self.pe_state.transactions)
 
         # Identical retry is idempotent; divergent descriptor reuse is invalid.
-        self.apply(pa_submit, submit, pa_spec)
-        _, divergent = make_pair_spec(payload="different")
-        self.apply(pa_submit, submit, divergent)
+        self.apply(pa_submit, submit, pa_spec, r3_args=(r3_spec,))
+        divergent_pa, divergent_r3 = make_pair_spec(payload="different")
+        self.apply(pa_submit, submit, divergent_pa, r3_args=(divergent_r3,))
 
         self.apply(pa_start, start, "tx-main")
         self.apply(pa_enter_waiting, enter_waiting, "tx-main", "dependency")
@@ -178,7 +177,7 @@ class SharedTransactionCoreTests(unittest.TestCase):
             markers=(PAMarker("commit", PAMarkerKind.COMMIT, Fraction(1)),),
             duration=0, automatic=0, external=0,
         )
-        self.apply(pa_submit, submit, pa_spec, )
+        self.apply(pa_submit, submit, pa_spec, r3_args=(r3_spec,))
         self.apply(pa_start, start, "tx-fail")
         self.apply(pa_reach_next_marker, reach_next_marker, "tx-fail", Fraction(1))
         self.apply(pa_commit_effect, commit_effect, "tx-fail", "commit")
@@ -189,17 +188,17 @@ class SharedTransactionCoreTests(unittest.TestCase):
         self.apply(pa_complete, complete, "tx-fail")
 
         cancel_markers = (PAMarker("sample", PAMarkerKind.SAMPLE, Fraction(1), True),)
-        pa_cancel_spec, _ = make_pair_spec(
+        pa_cancel_spec, r3_cancel_spec = make_pair_spec(
             "tx-cancel", markers=cancel_markers, duration=0, automatic=0, external=0
         )
-        self.apply(pa_submit, submit, pa_cancel_spec)
+        self.apply(pa_submit, submit, pa_cancel_spec, r3_args=(r3_cancel_spec,))
         self.apply(pa_start, start, "tx-cancel")
         self.apply(pa_cancel, cancel, "tx-cancel")
 
-        pa_late_spec, _ = make_pair_spec(
+        pa_late_spec, r3_late_spec = make_pair_spec(
             "tx-late", markers=cancel_markers, duration=0, automatic=0, external=0
         )
-        self.apply(pa_submit, submit, pa_late_spec)
+        self.apply(pa_submit, submit, pa_late_spec, r3_args=(r3_late_spec,))
         self.apply(pa_start, start, "tx-late")
         self.apply(pa_reach_next_marker, reach_next_marker, "tx-late", Fraction(1))
         self.apply(pa_sample_marker, sample_marker, "tx-late", "sample", "irreversible-read")
