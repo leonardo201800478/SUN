@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import sys
 import unittest
+from dataclasses import replace
 from fractions import Fraction
 from pathlib import Path
 
@@ -193,6 +194,58 @@ class TransactionResourceBridgeTests(unittest.TestCase):
             transaction_recovery.book.transactions[0].committed,
             ("commit-1", "commit-2"),
         )
+
+
+    def test_composite_mapping_and_ledger_invariants_reject_atomically(self):
+        accepted = admit(initial(capacity=10), amount=7)
+        state = accepted.state
+        original_mapping = state.marker_effects
+        original_resources = state.resources
+        invalid_states = (
+            replace(
+                state,
+                marker_effects=(original_mapping[0],),
+            ),
+            replace(
+                state,
+                marker_effects=(
+                    original_mapping[0],
+                    ("tx-bridge", "commit-2", "unexpected-effect"),
+                ),
+            ),
+            replace(
+                state,
+                resources=replace(
+                    original_resources,
+                    reservations=(("other-identity", 7, ("effect-1", "effect-2")),),
+                ),
+            ),
+            replace(
+                state,
+                resources=replace(
+                    original_resources,
+                    pending_effects=("effect-1",),
+                ),
+            ),
+            replace(
+                state,
+                resources=replace(
+                    original_resources,
+                    failed=True,
+                    error="unmatched resource failure",
+                ),
+            ),
+        )
+        for invalid_state in invalid_states:
+            with self.subTest(state=invalid_state):
+                result = reserve_and_submit(
+                    invalid_state,
+                    spec(),
+                    amount=7,
+                    marker_effects=(("commit-1", "effect-1"), ("commit-2", "effect-2")),
+                )
+                self.assertEqual(result.code, BridgeCode.INVALID_INPUT)
+                self.assertEqual(result.state, invalid_state)
 
 
 if __name__ == "__main__":
