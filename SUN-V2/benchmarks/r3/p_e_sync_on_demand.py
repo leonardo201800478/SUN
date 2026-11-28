@@ -35,11 +35,29 @@ class SyncDomain:
 
 
 @dataclass(frozen=True)
+class SyncPhaseBasis:
+    profile_id: str
+    profile_revision: str
+    coordinate: str
+    unit: str
+    scale_numerator: int
+    scale_denominator: int
+    basis_id: str
+    basis_revision: str
+    validation_record_id: str
+    validation_record_sha256: str
+
+
+@dataclass(frozen=True)
 class SyncTransition:
     identity: str
     owner: str
     at_common: Fraction
     depends_on: tuple[str, ...] = ()
+    microstep: int = 0
+    phase_order: int | None = None
+    phase_evidence: str | None = None
+    phase_basis: SyncPhaseBasis | None = None
 
 
 @dataclass(frozen=True)
@@ -71,6 +89,43 @@ def _exact(value: object) -> bool:
     return type(value) in (int, Fraction)
 
 
+def _valid_phase_basis(value: object) -> bool:
+    """Validate descriptor structure; do not treat it as external authentication."""
+    if not isinstance(value, SyncPhaseBasis):
+        return False
+    strings = (
+        value.profile_id, value.profile_revision, value.coordinate, value.unit,
+        value.basis_id, value.basis_revision, value.validation_record_id,
+        value.validation_record_sha256,
+    )
+    return (
+        all(isinstance(item, str) and item.strip() for item in strings)
+        and type(value.scale_numerator) is int and value.scale_numerator > 0
+        and type(value.scale_denominator) is int and value.scale_denominator > 0
+        and len(value.validation_record_sha256) == 64
+        and all(char in "0123456789abcdefABCDEF"
+                for char in value.validation_record_sha256)
+    )
+
+
+def _phase_relation(first: SyncTransition, second: SyncTransition) -> PairRelation:
+    """Compare phase order only on one identical, structurally valid basis."""
+    if (
+        first.phase_order is None or second.phase_order is None
+        or first.phase_evidence is None or second.phase_evidence is None
+        or not first.phase_evidence.strip() or not second.phase_evidence.strip()
+        or not _valid_phase_basis(first.phase_basis)
+        or first.phase_basis != second.phase_basis
+        or first.phase_order == second.phase_order
+    ):
+        return PairRelation.UNKNOWN
+    return (
+        PairRelation.FIRST_BEFORE_SECOND
+        if first.phase_order < second.phase_order
+        else PairRelation.SECOND_BEFORE_FIRST
+    )
+
+
 def _validate(state: object) -> str | None:
     """Validate domain progress, transition ownership and dependency identities."""
     if not isinstance(state, SyncState):
@@ -95,6 +150,12 @@ def _validate(state: object) -> str | None:
             or not isinstance(transition.identity, str) or not transition.identity.strip()
             or not isinstance(transition.owner, str) or transition.owner not in domain_ids
             or not _exact(transition.at_common)
+            or type(transition.microstep) is not int or transition.microstep < 0
+            or (transition.phase_order is not None and type(transition.phase_order) is not int)
+            or (transition.phase_evidence is not None and (
+                not isinstance(transition.phase_evidence, str) or not transition.phase_evidence.strip()
+            ))
+            or (transition.phase_basis is not None and not _valid_phase_basis(transition.phase_basis))
             or type(transition.depends_on) is not tuple
             or any(not isinstance(item, str) or not item.strip()
                    for item in transition.depends_on)
@@ -221,6 +282,16 @@ def _choose(
             elif declared is not PairRelation.UNKNOWN and declared is not relation:
                 return None
             if relation is PairRelation.UNKNOWN:
+                relation = _phase_relation(first, second)
+            if relation is PairRelation.UNKNOWN:
+                return None
+            if (
+                relation is PairRelation.FIRST_BEFORE_SECOND
+                and first.microstep > second.microstep
+            ) or (
+                relation is PairRelation.SECOND_BEFORE_FIRST
+                and second.microstep > first.microstep
+            ):
                 return None
             if relation is PairRelation.FIRST_BEFORE_SECOND:
                 incoming[second_id] += 1
