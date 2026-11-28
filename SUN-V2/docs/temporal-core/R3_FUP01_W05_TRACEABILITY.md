@@ -85,7 +85,7 @@ P-D now exposes `Scheduled`, `CancelPending`, `Cancelled`, `Superseded`, `Claime
 
 The exploratory `claim_next()` primitive still can claim without closing W. That result is deliberately candidate-local: `dispatch_event()` rejects such a claim with `InvariantViolation`, and `complete()` rejects it. Do not count `claim_next()` as the R2/P-A logical claim operation; the comparable claim is performed atomically by `close_watermark()`.
 
-P-D does not model `Failed`. It has no deadline effect ledger or partial-sub-effect state from which to support the R1 failure/recovery contract. Do not add a bare `Failed` enum state and claim equivalence without that model.
+P-D does not expose a `Failed` deadline status. R2 and P-A do expose `Failed` as a terminal deadline status and include it in the closed-watermark validator, but their W05 deadline APIs do not provide a transition that marks a deadline Failed. Partial-effect and recovery semantics belong to the separate ResourceLedger/transaction/snapshot contracts. Therefore P-D cannot mirror the preconstructed `Failed`-status validation row; do not add a bare enum value and claim end-to-end failure/recovery equivalence.
 
 Classification:
 - `Dispatched`: **DIRECTLY COMPARABLE for the scheduler lifecycle transition**. P-D now requires a closed watermark, transitions only `Claimed -> Dispatched`, and treats retries idempotently. This does not prove physical effect/partial-commit equivalence.
@@ -101,7 +101,7 @@ These are prototype representation limits, not claims about physical SMS hardwar
 - P-D now has a differential lifecycle path matching P-A: closed-watermark claim, explicit dispatch, exactly-once/idempotent dispatch, completion only after dispatch, and rejection of dispatch after an unwatermarked candidate-local claim.
 - Added generation-fencing cases: a `Dispatched` generation cannot be replaced before completion; after completion a successor can be published; an older cancelled/replaced generation returns `StaleIgnored` and cannot dispatch. Invalid identity/generation descriptors for dispatch and completion are rejected atomically.
 - CI #46186912606: R2 258/258 Linux and Windows; R3 315/315 Linux and Windows; corpus emission 202/202 per OS; canonical/replayable corpus equivalence PASS; R2 mutation checks and Rust quality/unit regression PASS. Rust workspace, documentation patch hygiene and production/hardware jobs SKIPPED.
-- FUP-01 remains PARTIAL. `Failed` and partial-effect recovery are NOT REPRESENTED in P-D; unwatermarked `claim_next()` remains candidate-local; malformed-book/all-operations lifecycle invariants and remaining invalid dispatch/completion descriptors still need a deliberate crosswalk.
+- FUP-01 remains PARTIAL. `Failed` status is NOT REPRESENTED in P-D; R2/P-A include it only as a terminal deadline status in validation, while W05 has no Failed transition. Partial-effect/recovery semantics remain owned by separate ResourceLedger/transaction/snapshot contracts. Unwatermarked `claim_next()` remains candidate-local; malformed-book/all-operations lifecycle invariants still need a deliberate crosswalk.
 
 
 ## 8. All-operations watermark invariant — 28/11/2026 (validation pending)
@@ -133,3 +133,8 @@ P-D still has no Failed status or partial-effect ledger, so R2's Failed-state ro
 - R2 test_scheduled_deadline_behind_closed_watermark_is_rejected_by_all_operations foi comparado com P-D. O protótipo já rejeitava globalmente eventos Scheduled em/atrás de W, mas faltava um teste diferencial que percorresse as operações equivalentes e verificasse atomicidade.
 - Novo teste: test_p_d_w05_scheduled_event_behind_closed_watermark_is_rejected_by_all_operations. Estado preconstruído D=4/W=5; publish, cancel request, arbitration, close W, dispatch, completion e replacement devem retornar InvalidInput sem alterar o estado. schedule_microstep não possui operação P-D correspondente e permanece explicitamente não comparável.
 - HEAD atual da PR #1290: 0138fe5d26e7947b2aa5833176fbce5b49156f4f. CI ainda não apareceu na consulta; não há PASS para este teste até validar Linux/Windows no SHA exato.
+
+
+### Precisão de escopo — status Failed (28/11/2026)
+
+A inspeção direta de R2 e P-A confirmou que ambos definem Failed como status terminal e incluem esse status no validador de watermark. As APIs W05 de deadline, porém, não expõem uma operação de transição para Failed. O ledger de efeitos parciais/recuperação pertence aos contratos separados de ResourceLedger, transações e snapshots; não deve ser atribuído ao modelo de deadline W05. P-D não possui o enum Failed, então a matriz de estado preconstruído Failed não é comparável neste candidato. Isso permanece uma lacuna de representação/validação, não uma autorização para adicionar um enum sem contrato de transição.
