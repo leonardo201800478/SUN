@@ -68,14 +68,17 @@ def project_pd_shared_state(state: AgendaState) -> ProjectionResult:
         records.append(DeadlineRecord(
             identity=event.identity,
             generation=event.generation,
-            at_common=event.at_common,
+            at_common=Fraction(event.at_common),
             state=mapped,
         ))
 
     return ProjectionResult(
         ProjectionCode.OK,
         R2SharedProjection(
-            watermark=state.watermark_common,
+            watermark=(
+                Fraction(state.watermark_common)
+                if state.watermark_common is not None else None
+            ),
             deadlines=tuple(records),
             unrepresented=(
                 "AgendaEvent.effect_id and phase metadata",
