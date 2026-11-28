@@ -265,3 +265,21 @@ The P-A `p_a_microsteps.py` candidate no longer imposes a global barrier based s
 The W07 replayable counterexample now preserves the P-A/R2 divergence as P-A `IndeterminateCausalOrder` versus R2 `Advanced` for B/C with no pairwise relation. Separate tests prove that explicit commutativity permits later-microstep overtaking and explicit B-before-C causality blocks it. The P-A microstep suite has 14 tests; the isolated W07 pairwise-cycle candidate has 22 tests.
 
 **Limits unchanged:** this is a synthetic candidate and does not determine the physical B/C relation. W07 physical B/C remains BLOCKED; W06 physical remains UNKNOWN; P-A has no closeout; P-D/P-E remain NOT RUN/BLOCKED; R3 remains in progress; R4/R5 remain pending. R1 v0.3.18 and the approved R2 executable oracle remain unchanged. No production CHRONOS/V2 code or hardware SMS behavior is validated by this run.
+
+
+## HEAD validation — CI #11112
+
+**Validated HEAD:** `7c07a9e6f7d6ee731aa7ba3495dca444a152300c`. **Run:** [CI #11112 / 46100695208](https://github.com/leonardo201800478/SUN/actions/runs/46100695208) — **SUCCESS**.
+
+- R3 disposable suite: **206/206 PASS Linux and 206/206 PASS Windows**, with Python 3.14.10 pinned on both.
+- Corpus emitter: **184 tests PASS** on both platforms.
+- Canonical corpus: **119 fixtures / 1,483 cuts** (1,472 differential + 11 property); logical trace digest `ab5e146eda37e8292159cc5440beca615c5b511383e3807b24adbacbb490056b`.
+- Replayable corpus: **25 fixtures / 134 operations-cuts**, preserving the W06 distinct-synthetic-phase-bases and W07 pending-commutative-sibling divergences; logical digest `6189653bb3aa18fc5805f7dd1ae9708ea31b349d03da7ea9fcc906350cbcfbb6`.
+- The dedicated equivalence job verified canonical and replayable artifacts byte-identical between Linux and Windows. Runner-specific artifact-file SHA-256 values differ because output paths are serialized; logical corpus digests and the normalized equivalence check are the relevant comparison.
+- Independent R2: **256/256 PASS Linux and 256/256 PASS Windows**; deliberate mutation checks PASS on both.
+- All seven applicable P-A synthetic matrices PASS (351 points per OS: advance 75, deadlines 180, causal 30, W06 24, W07 12, W08 10, W09 20).
+- Change-impact classification, workflow validation, documentation patch hygiene, corpus equivalence and Rust quality/unit regression supervisor: PASS.
+- Run totals: **9 SUCCESS, 14 SKIPPED**. Skipped subsystem jobs are not PASS and are not evidence of SMS hardware/runtime behavior.
+- Windows benchmark CPU-time fields remain `SKIPPED_COARSE_RESOLUTION`; do not use them as cross-platform CPU-time performance evidence.
+
+This run validates the current HEAD, including the W07 pairwise P-A correction and the three snapshot/W07 follow-up fixes. It does **not** close the physical evidence gaps: W06 phase evidence remains UNKNOWN and physical W07 B/C remains BLOCKED. P-A has no closeout; P-D/P-E remain NOT RUN/BLOCKED; R4/R5 remain pending. No production CHRONOS/V2 code, physical SMS timing, Rust runtime performance or 60 FPS claim is validated.
