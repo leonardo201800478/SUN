@@ -316,3 +316,35 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 - **FUP-02:** matriz `R3_FUP02_W03_W04_TRACEABILITY.md`, versão sem trailing whitespace no commit `bbf6dbde27cdf1db2e19ea62a113c85cee0a720d`; CI documental #46174219914 SUCCESS. P-E↔P-A e P-A↔R2 continuam como arestas distintas; W06 UNKNOWN e W07 UNKNOWN/BLOCKED.
 - **FUP-03:** auditoria `R3_FUP03_W08_BOUNDARY_AUDIT.md`, versão sem trailing whitespace no commit `334a65d608ab8ebfff623e40910507f4d852c7d5`. Decisão registrada: sem capacidade lógica/max_transactions no TransactionBook; eventual budget de memória é política interna futura, sem valor fixo e sem equivalência com capacidade física. Recovery continua IncomparableRecovery.
 - Todos os documentos e alterações permanecem em branches de pesquisa. Nenhum merge executado; nenhuma implementação de produção CHRONOS/V2 iniciada.
+
+
+### Estado reconciliado final desta rodada (28/11/2026)
+
+#### FUP-01 / W05 — PR #1290
+
+- HEAD: `572e64740409782ecf06fb0b58091c3ef13e8007`.
+- CI #46174471762 [SUCCESS](https://github.com/leonardo201800478/SUN/actions/runs/46174471762): R3 293 testes Linux/Windows; R2 independente Linux e R2 Python Windows; corpus canônico/replayável byte-equivalent; Rust quality/unit regression PASS.
+- A rodada adicionou dez regressões P-A/R2 (seis na primeira extensão e quatro na segunda) para A(E), watermark, owner, lifecycle, microstep e coordenadas não exatas.
+- Canonical P-A report: 129 fixtures / 1.508 cuts (1.497 differential + 11 property cuts); replayable corpus: 30 fixtures / 143 operações/cortes.
+- Matriz atual: `R3_FUP01_W05_TRACEABILITY.md`, commit `b38c7b2308cf1d55cefb4d049e09ae0432cc0b00`.
+- **FUP-01 permanece PARCIAL:** validação estrutural completa de livros/containers malformados e alguns invariantes de lifecycle ainda não têm crosswalk um-a-um.
+
+#### FUP-02 / W03-W04 — PR #1291
+
+- HEAD: `c8e86be79acba313c9b7abf882ceed415c3a44b5`.
+- CI #46174772392 [SUCCESS](https://github.com/leonardo201800478/SUN/actions/runs/46174772392): R3 282 testes Linux/Windows; R2 independente Linux e R2 Python Windows; corpora byte-equivalent; Rust quality/unit regression PASS.
+- Adicionados quatro testes P-E com 120 permutações cada: cinco eventos comutativos, cinco UNKNOWN não comutativos, cadeia explícita de dependências e DAG parcial com irmãos comutativos.
+- Um teste inicialmente falhou porque P-E considerava apenas dependência direta. A correção calcula alcance transitivo no grafo explícito `depends_on`; a cadeia e o DAG alinhado à fixture R2 passam.
+- Matriz atual: `R3_FUP02_W03_W04_TRACEABILITY.md`, commit `6cc50054036af757b6fbf5c8ff19fc9667b267a5`.
+- **FUP-02 permanece PARCIAL:** os novos 120-permutation tests são propriedades independentes P-E, não um diferencial triplo P-E↔P-A↔R2. W06 continua UNKNOWN e W07 UNKNOWN/BLOCKED.
+
+#### FUP-03 / W08 — PR #1293
+
+- HEAD: `f5179cd1383ec9734e781de281211be669023cd2`.
+- CI #46174810003 [SUCCESS](https://github.com/leonardo201800478/SUN/actions/runs/46174810003): R3 284 testes Linux/Windows; R2 independente Linux e R2 Python Windows; corpora byte-equivalent; Rust quality/unit regression PASS.
+- Além da correção do descritor inválido `spec=None`, adicionada regressão com cinco subcasos de estado composto inválido: mapping incompleto/divergente, reservation identity divergente, pending-effect mismatch e failure state sem correspondência. Todas as rejeições preservam o estado original.
+- Auditoria atual: `R3_FUP03_W08_BOUNDARY_AUDIT.md`, commit `5b8c658731e4f03c8f25d3cfb9cc3edf70af24d7`.
+- Decisão mantida: sem capacidade lógica no TransactionBook; budget de memória, se necessário, é política interna futura. Recovery segue IncomparableRecovery.
+- O finding P2 de validação do descritor da PR #1293 foi corrigido, validado e respondido; thread de revisão resolvida.
+
+**Situação global:** FUP-01, FUP-02 e FUP-03 continuam PARCIAIS, com limites e lacunas identificados. FUP-04 permanece tecnicamente concluído com limites explícitos. FUP-05, R4 e R5 continuam bloqueados. Nenhum merge foi executado e nenhum código de produção CHRONOS/V2 foi criado.
