@@ -89,6 +89,7 @@ def audit_candidate_replay_boundary(
                 ReplayBoundaryCode.INVALID_INPUT, detail="candidate replay arguments are not canonical object data"
             )
         sequences.append(event.sequence)
+    sequences.sort()
     expected = list(range(artifact.input_cursor + 1,
                            artifact.input_cursor + 1 + len(sequences)))
     if sequences != expected:
