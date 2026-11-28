@@ -108,7 +108,7 @@ def _valid_phase_basis(value: object) -> bool:
         and type(value.scale_numerator) is int and value.scale_numerator > 0
         and type(value.scale_denominator) is int and value.scale_denominator > 0
         and len(value.validation_record_sha256) == 64
-        and all(char in "0123456789abcdefABCDEF"
+        and all(char in "0123456789abcdef"
                 for char in value.validation_record_sha256)
     )
 
@@ -180,7 +180,11 @@ def _validate(state: object) -> str | None:
             or (event.phase_evidence is not None and (
                 not isinstance(event.phase_evidence, str) or not event.phase_evidence.strip()
             ))
-            or (event.phase_basis is not None and not _valid_phase_basis(event.phase_basis))
+            or ((event.phase_order is None) != (event.phase_evidence is None))
+            or (event.phase_basis is not None and (
+                not _valid_phase_basis(event.phase_basis)
+                or event.phase_order is None or event.phase_evidence is None
+            ))
         ):
             return "invalid event descriptor"
         key = (event.identity, event.generation)
@@ -274,7 +278,11 @@ def publish(
         or (phase_evidence is not None and (
             not isinstance(phase_evidence, str) or not phase_evidence.strip()
         ))
-        or (phase_basis is not None and not _valid_phase_basis(phase_basis))
+        or ((phase_order is None) != (phase_evidence is None))
+        or (phase_basis is not None and (
+            not _valid_phase_basis(phase_basis)
+            or phase_order is None or phase_evidence is None
+        ))
     ):
         return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="invalid publish descriptor")
     if len(state.events) >= state.max_events:
