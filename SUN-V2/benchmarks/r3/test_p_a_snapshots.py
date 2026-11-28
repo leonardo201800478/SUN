@@ -307,6 +307,112 @@ class PASnapshotTests(unittest.TestCase):
         self.assertEqual(restored.code, PASnapshotCode.OK)
         self.assertEqual(restored.restored_state.deadlines, records)
 
+    def test_capture_rejects_scheduled_deadline_at_or_before_closed_watermark(self):
+        for deadline_time in (Fraction(7), Fraction(8)):
+            with self.subTest(deadline_time=deadline_time):
+                deadline = PADeadlineRecord(
+                    "d", 0, deadline_time, PADeadlineState.SCHEDULED
+                )
+                state = machine(watermark=Fraction(8), deadlines=(deadline,))
+                result = capture(state)
+                self.assertEqual(result.code, PASnapshotCode.INVALID_INPUT)
+                self.assertIsNone(result.artifact)
+
+    def test_restore_rejects_scheduled_deadline_at_or_before_closed_watermark_atomically(self):
+        active = machine(watermark=Fraction(9))
+        for deadline_time in (Fraction(7), Fraction(8)):
+            with self.subTest(deadline_time=deadline_time):
+                invalid_state = machine(
+                    watermark=Fraction(8),
+                    deadlines=(PADeadlineRecord(
+                        "d", 0, deadline_time, PADeadlineState.SCHEDULED
+                    ),),
+                )
+                payload = _encode_state(invalid_state)
+                forged = PASnapshotArtifact(
+                    invalid_state.profile, invalid_state.model_version,
+                    payload, hashlib.sha256(payload).hexdigest(),
+                )
+                result = restore(
+                    active, forged, expected_profile="SMS-NTSC",
+                    expected_version="R1-0.3.18",
+                )
+                self.assertEqual(result.code, PASnapshotCode.INCOMPATIBLE)
+                self.assertIs(result.active_state, active)
+                self.assertIsNone(result.restored_state)
+
+    def test_capture_rejects_multiple_scheduled_generations_for_identity(self):
+        records = (
+            PADeadlineRecord("d", 0, Fraction(9), PADeadlineState.SCHEDULED),
+            PADeadlineRecord("d", 1, Fraction(10), PADeadlineState.SCHEDULED),
+        )
+        result = capture(machine(watermark=Fraction(8), deadlines=records))
+        self.assertEqual(result.code, PASnapshotCode.INVALID_INPUT)
+        self.assertIsNone(result.artifact)
+
+    def test_restore_rejects_multiple_scheduled_generations_for_identity_atomically(self):
+        active = machine(watermark=Fraction(9))
+        invalid_state = machine(
+            watermark=Fraction(8),
+            deadlines=(
+                PADeadlineRecord("d", 0, Fraction(9), PADeadlineState.SCHEDULED),
+                PADeadlineRecord("d", 1, Fraction(10), PADeadlineState.SCHEDULED),
+            ),
+        )
+        payload = _encode_state(invalid_state)
+        forged = PASnapshotArtifact(
+            invalid_state.profile, invalid_state.model_version,
+            payload, hashlib.sha256(payload).hexdigest(),
+        )
+        result = restore(
+            active, forged, expected_profile="SMS-NTSC",
+            expected_version="R1-0.3.18",
+        )
+        self.assertEqual(result.code, PASnapshotCode.INCOMPATIBLE)
+        self.assertIs(result.active_state, active)
+        self.assertIsNone(result.restored_state)
+
+    def test_only_one_effect_capable_deadline_generation_may_exist_per_identity(self):
+        active = machine(watermark=Fraction(9))
+        for previous_state in (
+            PADeadlineState.CLAIMED,
+            PADeadlineState.DISPATCHED,
+            PADeadlineState.FAILED,
+        ):
+            with self.subTest(previous_state=previous_state):
+                previous = PADeadlineRecord(
+                    "d", 0, Fraction(8), previous_state,
+                    committed_effects=("effect-1",) if previous_state in (
+                        PADeadlineState.DISPATCHED, PADeadlineState.FAILED
+                    ) else (),
+                    pending_effects=("effect-2",) if previous_state in (
+                        PADeadlineState.DISPATCHED, PADeadlineState.FAILED
+                    ) else (),
+                    error="fault" if previous_state is PADeadlineState.FAILED else None,
+                )
+                replacement = PADeadlineRecord(
+                    "d", 1, Fraction(10), PADeadlineState.SCHEDULED
+                )
+                invalid_state = machine(
+                    watermark=Fraction(8), deadlines=(previous, replacement)
+                )
+                captured = capture(invalid_state)
+                self.assertEqual(captured.code, PASnapshotCode.INVALID_INPUT)
+                self.assertIsNone(captured.artifact)
+
+                payload = _encode_state(invalid_state)
+                forged = PASnapshotArtifact(
+                    invalid_state.profile, invalid_state.model_version,
+                    payload, hashlib.sha256(payload).hexdigest(),
+                )
+                restored = restore(
+                    active, forged, expected_profile="SMS-NTSC",
+                    expected_version="R1-0.3.18",
+                )
+                self.assertEqual(restored.code, PASnapshotCode.INCOMPATIBLE)
+                self.assertIs(restored.active_state, active)
+                self.assertIsNone(restored.restored_state)
+
     def test_failed_transaction_does_not_auto_recover_on_restore(self):
         tx = PATransactionRecord(
             "tx", 0, PATransactionState.FAILED, Fraction(5),
