@@ -40,10 +40,10 @@ P-A has an additional `test_repeated_observation_trace_matches_r2_at_each_cut` t
 |---|---|---|
 | `test_phase_order_without_matching_evidence_does_not_create_precedence` | P-E `test_w06_different_phase_bases_remain_unknown`; P-E `test_w06_common_phase_basis_is_a_synthetic_positive_control` | **Partial.** It proves the candidate keeps different bases UNKNOWN and has a synthetic positive control; it does not validate an SMS phase basis. |
 | `test_unknown_noncommutative_tie_never_closes_watermark_under_insertion_permutation` | P-A unknown simultaneous groups under insertion permutations; P-E unknown same-instant pair | **Absent for exhaustive insertion permutations in both R3 candidates.** P-A tests a representative unknown tie; P-E tests a pair, not the R2 permutation family. |
-| `test_all_120_permutations_of_five_commutative_events_are_equivalent` | P-A canonical commutative tie test; P-E pairwise commutative order and cache test | **Absent for the 120-permutation property in both P-A and P-E.** A representative canonical tie or pairwise stable-order result is not a substitute. |
-| `test_all_120_permutations_of_five_noncommutative_unknown_events_stay_indeterminate` | P-A unknown tie test; P-E unknown pair test | **Absent for the 120-permutation property in both P-A and P-E.** |
-| `test_all_120_permutations_preserve_five_event_explicit_dependency_order` | P-A same-instant dependency order; P-E transitive dependency closure and explicit same-instant dependency | **Partial for selected chains; absent for the five-event 120-permutation property in both P-A and P-E.** |
-| `test_all_120_permutations_preserve_partial_order_with_commutative_siblings` | P-A dependency and commutativity tests; P-E pairwise commutative and dependency tests | **Absent for the combined exhaustive partial-order family in both P-A and P-E.** |
+| `test_all_120_permutations_of_five_commutative_events_are_equivalent` | P-A representative canonical tie; P-E same-named 120-permutation property test | **P-E property coverage now exercises all 120 permutations.** No same-fixture 120-permutation P-E↔R2/P-A differential is claimed. |
+| `test_all_120_permutations_of_five_noncommutative_unknown_events_stay_indeterminate` | P-A representative unknown tie; P-E same-named 120-permutation property test | **P-E property coverage now exercises all 120 permutations.** No same-fixture cross-model differential is claimed. |
+| `test_all_120_permutations_preserve_five_event_explicit_dependency_order` | P-A same-instant dependency order; P-E same-named 120-permutation property test | **P-E property coverage now exercises the exact five-event dependency chain across all 120 permutations.** P-E computes explicit transitive dependency reachability; no physical phase is inferred. |
+| `test_all_120_permutations_preserve_partial_order_with_commutative_siblings` | P-A dependency and commutativity tests; P-E same-named 120-permutation property test | **P-E property coverage now exercises all 120 permutations using the R2 five-event DAG topology.** This is an independent property test, not a same-fixture R2 differential. |
 
 Additional R2 deadline tests classified under T07 include noncommutative UNKNOWN ties and commutative tie invariance in `test_deadlines.py`. Their W05 deadline lifecycle crosswalk is recorded separately in `R3_FUP01_W05_TRACEABILITY.md`.
 
@@ -64,18 +64,21 @@ P-E adds a separate P-E/P-A repeated-observation differential in `test_p_e_diffe
 
 ## 6. CI evidence
 
-PR #1291 / CI #11284 at exact HEAD `a729acf77205fcef7ff5a2291c3d164b98b1c8fb`:
-- R3 278/278 Linux and 278/278 Windows.
-- P-A corpus 186/186 per OS.
-- R2 independent 256/256 Linux; R2 Python 256/256 Windows.
-- Mutation checks, canonical/replayable corpora byte-identical and Rust quality/unit regression: SUCCESS.
+PR #1291 baseline / CI #11284 at HEAD `a729acf77205fcef7ff5a2291c3d164b98b1c8fb`: R3 278/278 Linux/Windows; R2 256/256 per platform; corpus equivalence and Rust quality/unit regression passed.
+
+Expanded P-E HEAD `c8e86be79acba313c9b7abf882ceed415c3a44b5`, CI #46174772392 SUCCESS:
+- R3 suite 282 tests Linux/Windows.
+- R2 independent 256/256 Linux and R2 Python 256/256 Windows.
+- Canonical/replayable corpus Linux/Windows equivalence and Rust quality/unit regression passed.
+- Linux canonical P-A corpus: 119 fixtures / 1,483 cuts (1,472 differential + 11 property cuts); replayable corpus: 30 fixtures / 143 operations/cuts.
+- The initial 120-permutation run at SHA `73ec4168569526c5c9c5485ff76266eb15ecacec` exposed one failure: the explicit five-event chain returned Indeterminate because P-E compared only direct dependencies. The corrected transitive reachability implementation and R2-topology partial-order fixture pass on the final SHA above.
 - Production SMS/Z80/VDP/PSG/YM2413/CPAL/SDL3/Slint/WGPU/scheduler jobs: SKIPPED, not PASS.
 
 ## 7. Remaining FUP-02 work
 
-1. Add a five-event P-E permutation matrix for commutative, noncommutative UNKNOWN, explicit dependency order, and partial order with commutative siblings only if it can preserve P-E's independent implementation and avoid copying R2's oracle logic.
+1. Add same-fixture P-E↔P-A↔R2 differential checks for selected five-event permutation cases if the adapters can preserve independent implementations; current P-E 120-permutation tests are property tests, not a direct three-model comparison.
 2. Clarify/retain the distinct missing-dependency classifications (Blocked vs InvalidInput) with discriminating fixtures; do not normalize the result codes for superficial parity.
 3. Decide whether P-E's observation/alters boundary can be mapped to the R2 causal contract without inventing state fields. If not, document it as non-comparable.
 4. Keep the pre-applied causal ledger absent/non-comparable unless P-E acquires an independently justified representation.
-5. Re-run Linux and Windows R3, R2 independent/Python, mutation checks and corpus equivalence on the exact resulting SHA.
+5. Extend the cross-model differential only where the fixture/state representation is genuinely equivalent; do not normalize distinct result codes.
 6. Keep FUP-02 PARTIAL while W06 remains UNKNOWN and W07 remains UNKNOWN/BLOCKED; neither uncertainty is a reason to invent a synthetic resolution.
