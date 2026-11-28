@@ -3,20 +3,25 @@ from __future__ import annotations
 
 import sys
 import unittest
-from pathlib import Path
 from fractions import Fraction
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "verification" / "r2_reference"))
 
-from p_d_discrete_agenda import AgendaEvent, AgendaState, EventStatus
-from pd_r2_snapshot_projection import ProjectionCode, project_pd_shared_state
-from snapshot_reference import DeadlineRecord, DeadlineState
+from p_d_discrete_agenda import (  # noqa: E402
+    AgendaCancellation, AgendaEvent, AgendaState, EventStatus,
+)
+from pd_r2_snapshot_projection import (  # noqa: E402
+    ProjectionCode, project_pd_shared_state,
+)
+from snapshot_reference import DeadlineRecord, DeadlineState  # noqa: E402
 
 
 class PdR2SnapshotProjectionTests(unittest.TestCase):
     def test_maps_only_shared_deadline_fields_and_watermark(self):
         state = AgendaState(
+            heap=((Fraction(9), "pending", 3),),
             events=(
                 AgendaEvent("done", 2, "cpu", Fraction(8), "write-done", EventStatus.COMPLETED),
                 AgendaEvent("old", 1, "cpu", Fraction(5), "old-write", EventStatus.SUPERSEDED),
@@ -42,10 +47,15 @@ class PdR2SnapshotProjectionTests(unittest.TestCase):
         self.assertTrue(any("interrupts" in item for item in projection.unrepresented))
 
     def test_cancel_pending_is_not_guessed_as_cancelled_or_scheduled(self):
-        state = AgendaState(events=(
-            AgendaEvent("cancel-pending", 1, "cpu", Fraction(4), "effect",
-                        EventStatus.CANCEL_PENDING),
-        ))
+        state = AgendaState(
+            events=(
+                AgendaEvent("cancel-pending", 1, "cpu", Fraction(4), "effect",
+                            EventStatus.CANCEL_PENDING),
+            ),
+            pending_cancellations=(
+                AgendaCancellation("cancel-pending", 1, "cpu", Fraction(3)),
+            ),
+        )
         result = project_pd_shared_state(state)
         self.assertEqual(result.code, ProjectionCode.UNSUPPORTED)
         self.assertIsNone(result.projection)
