@@ -452,3 +452,11 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 - CI #46186515697 SUCCESS no SHA `3f0bd208cacf6a135be0905b579a88de1903ce2b`: R2 258/258 Linux e Windows; R3 314/314 Linux e Windows; corpus emitter 202/202 por OS; corpus canônico/replayável byte-identical; R2 mutation checks e Rust quality/unit regression PASS. Rust workspace e jobs de produção/hardware SKIPPED.
 - `Failed` permanece NOT REPRESENTED em P-D porque o protótipo não possui ledger de efeitos parciais/recuperação. `claim_next()` sem watermark continua candidate-local e não substitui `close_watermark()` como claim comparável.
 - FUP-01 permanece PARCIAL; não autoriza R4/R5 nem produção.
+
+
+### FUP-01 — descritores inválidos de dispatch/completion (28/11/2026)
+
+- Diferencial P-A/P-D para identidade vazia, identidade não textual, geração booleana e geração negativa em dispatch e completion. Todos os casos exigem `InvalidInput` e preservação integral dos dois estados.
+- Teste: `test_p_d_w05_dispatch_and_completion_reject_invalid_descriptors_atomically`.
+- CI #46186912606 SUCCESS no SHA `4b05025d8a2ebc0b21052eccdada0f305154a696`: R2 258/258 Linux e Windows; R3 315/315 Linux e Windows; corpus emitter 202/202 por OS; corpora canônico/replayável byte-identical; mutation checks R2 e Rust quality/unit regression PASS. Jobs de produção/hardware, Rust workspace e documentation patch hygiene SKIPPED.
+- FUP-01 permanece PARCIAL: `Failed`/efeitos parciais, projeção de `Superseded`, claim experimental sem W e invariantes globais de watermark ainda precisam de crosswalk explícito.
