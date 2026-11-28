@@ -176,3 +176,15 @@ These results are **OBSERVATION** for synthetic Python prototypes only. They are
 - R3 remains **IN PROGRESS**. R4 and R5 are not approved. No production CHRONOS/V2 implementation is authorized before R5.
 
 **Next technical work:** extend P-D/P-A differential coverage to W05; implement P-D/P-E snapshot/restore/replay for W09 against the immutable reference; review transaction-generation and resource-boundary assumptions; then repeat cross-platform differential validation and request an independent adversarial review.
+
+
+### 5. Adversarial implementation findings — open assumptions, not physical conclusions
+
+- **Identity/generation (FACT):** `TransactionBook` lookup is keyed by stable `identity`. An identical descriptor retry (including the same generation) is idempotent; reusing the same identity with any divergent descriptor, including another generation, returns `InvalidInput`. The current model does not implement same-identity generation supersession. P-A and the R2 transaction oracle use the same identity-unique rule. Whether a bus transaction needs generation replacement under one stable identity remains **UNKNOWN** and must be resolved from the R1/R2 contract before changing it.
+- **Resource bound (FACT):** W08 `TransactionBook` currently has no explicit maximum transaction count/capacity budget. P-D's event capacity and microstep limit do not bound transaction-book growth; P-E also has no transaction-book capacity. Resource exhaustion/eviction policy is therefore **NOT MODELED** in this W08 slice, not implicitly unlimited hardware capacity.
+- **Integration boundary (FACT):** P-D/P-E scheduling operations preserve the immutable transaction book when reconstructing `AgendaState`/`SyncState`; `apply_transaction` updates the shared ledger. However, transaction lifecycle operations are not yet causally coupled to agenda claims, P-E observed transitions or a modeled bus completion pipeline. This is a shared logical transaction-state integration, not end-to-end bus integration.
+- **Invalid operations (OBSERVATION):** tested invalid retries and wrong-source WAIT releases return the original transaction book and preserve the complete transaction record. The immutable dataclasses/tuple ledgers prevent in-place mutation. This does not replace adversarial tests for arbitrary forged books or resource exhaustion.
+- **Snapshot/replay:** P-D/P-E have no canonical snapshot artifact for the shared transaction book. A raw dataclass copy or `replace` is not considered snapshot/restore validation. W09 remains open for these candidates.
+- **Physical semantics:** automatic TW, external TW, fixture WAIT and dependency WAIT are logical categories in this prototype. The differential tests establish candidate/oracle consistency for the tested cases, not the exact SMS bus timing or the physical provenance of any WAIT.
+
+These items remain review findings/assumptions for R4. They are not reasons to invent hardware semantics or to mark W08/W09 physical fidelity as PASS.
