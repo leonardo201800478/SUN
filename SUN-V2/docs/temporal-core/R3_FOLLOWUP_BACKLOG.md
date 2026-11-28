@@ -379,3 +379,14 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 - FUP-01 W05: `R3_FUP01_W05_TRACEABILITY.md`, HEAD documental `4b4e9476c77a773dfaceb08c96d4fbd304858435`; evidência de código/CI mais recente PR #1290 HEAD `8ad22e3cdf8d4c97f4c557f061a9fd4e8f96013e`, CI #46175104624 SUCCESS.
 - FUP-02 W03/W04: `R3_FUP02_W03_W04_TRACEABILITY.md`, HEAD documental `45634029bad00491090aa8cba81f9c0f2cd26ebf`; evidência de código/CI PR #1291 HEAD `009ab3d8b375c382dad7fecc7ee1df2a573351e2`, CI #46175394407 SUCCESS.
 - FUP-03 W08: `R3_FUP03_W08_BOUNDARY_AUDIT.md`, HEAD documental `5b8c658731e4f03c8f25d3cfb9cc3edf70af24d7`; evidência de código/CI PR #1293 HEAD `f5179cd1383ec9734e781de281211be669023cd2`, CI #46174810003 SUCCESS.
+
+
+### FUP-03 — fechamento dos dois findings P2 da ponte W08 (28/11/2026)
+
+- PR #1293 HEAD: `fcafd5f7901a091db2d4cd087795b88c3f32f9fb`.
+- CI #46175667275 [SUCCESS](https://github.com/leonardo201800478/SUN/actions/runs/46175667275): R3 285 testes Linux/Windows; R2 independente Linux; R2 Python Windows; corpora canônico/replayável byte-equivalent; Rust quality/unit regression PASS.
+- Segundo finding P2 resolvido: SAMPLE marker agora é executado pela operação coarse-grained de ponte `sample_transaction_marker()`; retorna READY→InProgress, registra o valor, mantém ResourceLedger inalterado e repete idempotentemente o primeiro valor capturado. COMMIT seguinte continua pareado atomicamente ao efeito do ResourceLedger.
+- Regressão: `test_sample_marker_returns_to_in_progress_before_commit_and_is_idempotent`.
+- Ambos os findings P2 da PR #1293 foram respondidos e as duas threads estão resolvidas.
+- Auditoria W08 atualizada em `R3_FUP03_W08_BOUNDARY_AUDIT.md`, commit `fd385c2ee09ac2ac644f7d774d57cf56b135e1f5`.
+- **FUP-03 permanece PARCIAL** exclusivamente quanto aos limites de recovery composto e à necessidade de ampliar a matriz/invariantes além dos cenários já cobertos. A correção SAMPLE não resolve IncomparableRecovery nem altera a decisão de capacidade do TransactionBook.
