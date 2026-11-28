@@ -2,7 +2,7 @@
 
 **Status:** PARTIAL — traceability consolidation, not a gate approval
 **R3 baseline:** `98cd9e258ae463e32397a119d4d4e6a007346c22`
-**P-A/W05 evidence:** PR #1290, latest candidate HEAD `6949b074096bad237cf4413ad75fc5762a6d9218`; CI #46183873117 PENDING. Previous validated HEAD `ec74ea861f8a823d9495cbc6368e14d1e7d0a38c`, CI #46183529839 SUCCESS
+**P-A/W05 evidence:** PR #1290, HEAD `6949b074096bad237cf4413ad75fc5762a6d9218`, CI #46183873117 SUCCESS. Previous validated HEAD `ec74ea861f8a823d9495cbc6368e14d1e7d0a38c`, CI #46183529839 SUCCESS
 **CI:** https://github.com/leonardo201800478/SUN/actions/runs/46169692644
 **Scope:** W05 generation replacement, deadline publication/cancellation, arbitration, watermark interaction and generation fencing.
 
@@ -55,6 +55,7 @@ R2 `test_resource.py` (10 cases) covers ResourceLedger capacity, reservation ret
 - PR #1290 / CI #11283 at HEAD `a3a3704cec15dcc77b5a1d6f8caaf41f6d4210f9`: prior baseline, R3 283/283 Linux/Windows and P-A corpus 186/186 per OS.
 - Follow-up tests HEAD `0ba1de3994e59e289be840e3a0b5535cdc22f34b`, CI #46174170146 SUCCESS: six W05 regressions; R3 suite 289 tests on Linux/Windows.
 - Prior validated W05 successor-cancellation fix HEAD `ec74ea861f8a823d9495cbc6368e14d1e7d0a38c`, CI #46183529839 SUCCESS: R2 257/257 Linux and Windows; R3 302/302 Linux and Windows; corpus emission 202/202 per OS; canonical corpus 135 fixtures / 1,525 cuts (1,514 differential + 11 property), digest `4486046a13980e26e3e491bc7e5457cc52159dc5560230421fb9357f41b492b3`; replayable corpus 30 fixtures / 143 operations, digest `ed039c1985d1a0d1dee518a33bfcbbefd3713368e040e113f4b8d856c255e215`; Rust quality/unit regression PASS. Production/hardware-specific jobs SKIPPED.
+- Current candidate HEAD `6949b074096bad237cf4413ad75fc5762a6d9218`, CI #46183873117 SUCCESS: R2 258/258 Linux and Windows; R3 303/303 Linux and Windows; corpus emission 202/202 per OS; canonical corpus 135 fixtures / 1,525 cuts (1,514 differential + 11 property), same digest `4486046a13980e26e3e491bc7e5457cc52159dc5560230421fb9357f41b492b3`; replayable corpus 30 fixtures / 143 operations, same digest `ed039c1985d1a0d1dee518a33bfcbbefd3713368e040e113f4b8d856c255e215`; Linux/Windows byte-equivalence PASS; R2 mutation checks PASS; Rust quality/unit regression PASS. Production/hardware-specific jobs SKIPPED.
 - Expanded W05 HEAD `572e64740409782ecf06fb0b58091c3ef13e8007`, CI #46174471762 SUCCESS: R3 suite 293 tests on Linux/Windows; R2 independent Linux and R2 Python Windows passed; canonical/replayable corpus Linux/Windows equivalence and Rust quality/unit regression passed. Linux canonical corpus: 129 fixtures / 1,508 cuts (1,497 differential + 11 property cuts); replayable corpus: 30 fixtures / 143 operations/cuts. Two divergent fixture IDs remain W06/W07 and are not promoted to resolved physical facts.
 - Rational cancellation frontier HEAD `8ad22e3cdf8d4c97f4c557f061a9fd4e8f96013e`, CI #46175104624 SUCCESS: R3 suite 294 tests Linux/Windows; R2 independent Linux and R2 Python Windows passed; canonical/replayable corpus equivalence and Rust quality/unit regression passed. Linux canonical corpus: 130 fixtures / 1,510 cuts (1,499 differential + 11 property cuts); replayable corpus: 30 fixtures / 143 operations/cuts. Added direct P-A/R2 exact-rational cancellation conversion comparison.
 - Global horizon and obligation precedence HEAD `80416f457478f0564ebd3a3d07f21c14648d7a8a`, CI #46176113812 SUCCESS: R3 suite 299 tests Linux/Windows; R2 independent 256/256 Linux and R2 Python 256/256 Windows; canonical/replayable corpus Linux/Windows equivalence; Rust quality/unit regression PASS. Rust workspace regression was SKIPPED because only Python prototype tests changed. Linux canonical corpus: 135 fixtures / 1,525 cuts (1,514 differential + 11 property cuts); replayable corpus: 30 fixtures / 143 operations/cuts. Added five direct P-A/R2 tests for safe-horizon regression, global horizon behind W, precedence before incomplete participant block, and inconsistent unresolved obligations.
@@ -88,7 +89,7 @@ These are prototype representation limits, not claims about physical SMS hardwar
 
 ## 7. Latest candidate and pending validation — 28/11/2026
 
-- Candidate HEAD: `6949b074096bad237cf4413ad75fc5762a6d9218`; CI #46183873117 is PENDING at the time of this update.
+- Candidate HEAD: `6949b074096bad237cf4413ad75fc5762a6d9218`; CI #46183873117 SUCCESS.
 - Added R2-T06 publication tests for a successor attempted while the predecessor is `Scheduled` and while it is `CancelPending`.
 - Added P-A/P-D differential coverage for both states, requiring `InvalidInput` and exact non-mutation.
 - The first CI attempt at SHA `513e825c9f0464dc19cfa7e9ddf16c1038ca32d3` exposed a fixture invocation error (the R2 test helper already supplies `at_common`; the test passed it twice). The test now uses the helper's `at=12` interface. That failed run is retained as FAIL and is not counted as evidence for the corrected HEAD.
