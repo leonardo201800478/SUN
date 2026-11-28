@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+import json
 
 from r3_candidate_snapshots import ReplayEvent, SnapshotArtifact
 from replay_reference import ReplayState, _validate_state
@@ -73,6 +74,19 @@ def audit_candidate_replay_boundary(
         ):
             return ReplayBoundaryResult(
                 ReplayBoundaryCode.INVALID_INPUT, detail="invalid candidate replay operation"
+            )
+        try:
+            arguments = json.loads(event.arguments.decode("utf-8"))
+            canonical = json.dumps(
+                arguments, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+            ).encode("utf-8")
+        except (UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError):
+            return ReplayBoundaryResult(
+                ReplayBoundaryCode.INVALID_INPUT, detail="invalid candidate replay arguments"
+            )
+        if type(arguments) is not dict or canonical != event.arguments:
+            return ReplayBoundaryResult(
+                ReplayBoundaryCode.INVALID_INPUT, detail="candidate replay arguments are not canonical object data"
             )
         sequences.append(event.sequence)
     expected = list(range(artifact.input_cursor + 1,
