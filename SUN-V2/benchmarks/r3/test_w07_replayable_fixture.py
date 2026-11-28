@@ -61,7 +61,7 @@ def _state_data(state, *, future_override=None, relations_override=None):
         ],
         "resolved": list(state.resolved),
         "future": [
-            {
+            item if isinstance(item, dict) else {
                 "identity": item.identity,
                 "owner": item.owner,
                 "microstep": item.microstep,
@@ -70,7 +70,7 @@ def _state_data(state, *, future_override=None, relations_override=None):
             for item in future
         ],
         "relations": [
-            {
+            item if isinstance(item, dict) else {
                 "first_id": item.first_id,
                 "second_id": item.second_id,
                 "relation": item.relation.value,
