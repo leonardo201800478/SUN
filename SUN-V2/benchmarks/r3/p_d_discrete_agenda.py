@@ -354,7 +354,10 @@ def _validate(state: object) -> str | None:
             or request.at_common > event.at_common
             or (
                 state.watermark_common is not None
-                and state.watermark_common >= event.at_common
+                and (
+                    state.watermark_common >= request.at_common
+                    or state.watermark_common >= event.at_common
+                )
             )
         ):
             return "pending cancellation and event record disagree"
@@ -798,7 +801,9 @@ def claim_next(state: AgendaState, target_common: int | Fraction) -> AgendaResul
         return AgendaResult(state, AgendaCode.LATE_INPUT, detail="target is behind the closed watermark")
     for request in state.pending_cancellations:
         event = _find(state, request.identity, request.generation)
-        if event is not None and event.at_common <= target:
+        if event is not None and (
+            request.at_common <= target or event.at_common <= target
+        ):
             return AgendaResult(state, AgendaCode.BLOCKED, event, "pending cancellation must be arbitrated before claim")
     if state.heap and target < state.heap[0][0]:
         return AgendaResult(state, AgendaCode.BLOCKED, detail="no event due at target")
@@ -864,7 +869,9 @@ def close_watermark(
             return AgendaResult(state, AgendaCode.BLOCKED, detail="watermark exceeds the global safe horizon")
     for request in state.pending_cancellations:
         event = _find(state, request.identity, request.generation)
-        if event is not None and event.at_common <= target:
+        if event is not None and (
+            request.at_common <= target or event.at_common <= target
+        ):
             return AgendaResult(state, AgendaCode.BLOCKED, event, "pending cancellation must be arbitrated before watermark close")
 
     heap = list(state.heap)
