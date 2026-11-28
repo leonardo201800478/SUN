@@ -191,7 +191,7 @@ class W07ReplayableOracleGapTests(unittest.TestCase):
                 AStepObligation("b", "vdp", 0, True),
             ),
             (),
-            (AStepObligation("c", "psg", 1, False),),
+            (AStepObligation("c", "psg", 1, True),),
             (
                 AStepPairConstraint(
                     "a", "b", AStepPairRelation.COMMUTATIVE
@@ -205,7 +205,7 @@ class W07ReplayableOracleGapTests(unittest.TestCase):
                 "args": {
                     "obligation_id": "a",
                     "resolves_obligation": True,
-                    "emitted": (("c", "psg", False),),
+                    "emitted": (("c", "psg", True),),
                 },
             },
             {
