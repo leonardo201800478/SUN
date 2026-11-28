@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from fractions import Fraction
 
 from p_d_discrete_agenda import AgendaState, EventStatus, _validate as validate_pd
 from snapshot_reference import DeadlineRecord, DeadlineState
@@ -21,7 +22,7 @@ class ProjectionCode(str, Enum):
 
 @dataclass(frozen=True)
 class R2SharedProjection:
-    watermark: object
+    watermark: Fraction | None
     deadlines: tuple[DeadlineRecord, ...]
     unrepresented: tuple[str, ...]
 
