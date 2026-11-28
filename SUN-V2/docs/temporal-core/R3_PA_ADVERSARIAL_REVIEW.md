@@ -699,3 +699,35 @@ This corrects the P-A model's software-level adjudication gap, not the physical 
 The run validates the current candidate HEAD and the follow-up corrections described in §17.5–17.7. It does not supply a physical W06 phase record or a demonstrated physical W07 B/C relation. W06 remains UNKNOWN; physical W07 B/C remains BLOCKED. The replayable corpus is 25 fixtures/134 operations-cuts, but this count alone does not establish complete declared W00–W09 coverage or authorize P-D/P-E; fixture-to-workload coverage and P-A entry criteria still require explicit closeout.
 
 **Disposition:** P-A remains NOT CLOSED; P-D/P-E remain NOT RUN/BLOCKED; R3 remains in progress; R4/R5 remain pending. The formal independent PR review is still outstanding (no submitted review or inline review threads were present at this check). R1 v0.3.18 and the approved R2 oracle remain unchanged. No production CHRONOS/V2 implementation, physical SMS timing, Rust performance or 60 FPS claim is approved.
+
+
+### 17.9 Artifact-level workload coverage and SMS source audit (28/11/2026)
+
+#### Replayable corpus audit — CI #11115 artifacts
+
+The Linux and Windows artifacts from [CI #11115 / run 46104073426](https://github.com/leonardo201800478/SUN/actions/runs/46104073426) were downloaded and inspected independently after the workflow completed.
+
+- Replayable JSON: **1,307,199 bytes** on each OS; SHA-256 `db07c303eb7af6f902ddbf26e41ec93015729733b3af5f36aa8da5e65d641ecc`; byte-for-byte identical.
+- Canonical JSON: **430,667 bytes** on each OS; SHA-256 `c24b96ddec7d82f283fcd71e398b8208eb3f7b8f90e3ba8e8fbc6bbcea68e895`; byte-for-byte identical.
+- Replayable fixture IDs cover every declared workload category W00–W09: W00=1, W01=1, W02=1, W03=1, W04=1, W05=1, W06=2, W07=1, W08=12, W09=4. Total: **25 fixtures / 134 operations / 134 cuts**.
+- The two intentional divergences are exactly `W06_DISTINCT_SYNTHETIC_PHASE_BASES_KEEP_P_A_UNKNOWN` and `W07_PENDING_COMMUTATIVE_SIBLING_OVERTAKE`.
+
+**Correction to the earlier coverage wording:** category-level replayable representation for every W00–W09 workload is now directly verified, not merely inferred from the aggregate fixture count. This does not prove exhaustive coverage of every parameter/edge case in the workload definitions, nor does it prove P-D/P-E equivalence: the current replayable fixtures compare P-A with the approved R2 reference. P-A/R2 divergences W06/W07 remain explicit.
+
+#### Physical evidence source audit
+
+The current synthetic fixtures identify the domains involved:
+
+- W06 compares simultaneous CPU-owned and VDP-owned deadlines. Its `APhaseBasis` records use synthetic profile/validation identifiers and placeholder digests.
+- W07's B/C pair is VDP-owned B and PSG-owned C; A is CPU-owned. The replayable fixture explicitly says neither synthetic ordering is a physical claim.
+
+External technical references provide useful constraints but do not settle these event relations:
+
+1. SMS Power's [SN76489 documentation](https://www.smspower.org/Development/SN76489) states that the Master System integrates the SN76489 PSG into the VDP chip and describes its input clock. This is evidence about integration and PSG behavior, not proof that arbitrary VDP/PSG transitions commute or have a particular relative edge order.
+2. The SMS Power [SMS Display Timing measurement thread](https://www.smspower.org/forums/8161-SMSDisplayTiming) reports measurements on an original NTSC SMS: a 10.738580 MHz main clock, VDP pixel clock at half that rate, Z80/SN76489/YM2413 clocks at one third, 684 master-clock units per scanline, and a measured frame-interrupt position. These are useful **OBSERVATIONS** about clock ratios and selected VDP timing. They do not provide a captured phase basis for the exact W06 CPU/VDP deadline pair or the exact W07 VDP/PSG transition pair.
+3. The uploaded project files `Sega-Master-System-&-SG-1000-Technical-Docs-(EmulationResources-SMS-Power!).txt` and `Guia-detalhado-de-registradores-e-temporizações-para-o-hardware-do-SG-1000-e-SMS.txt` contain URL pointers rather than attached measurement records. `comparativo_de_testes_vdp_sega_emulator_vs_ares.md` records emulator test outcomes and differing HCounter readings, but does not provide a physical logic-analyzer/oscilloscope capture, ROM SHA, board/ASIC revision or calibrated common-clock phase record.
+
+**Disposition after source audit:**
+- W06 remains **UNKNOWN** until the exact CPU/VDP events are defined and a profile/revision-specific common-clock capture or equivalent primary measurement establishes their relative phase and provenance.
+- W07 remains **BLOCKED** until the exact VDP/PSG transition pair is defined and evidence establishes a causal relation, commutativity, or continued UNKNOWN. The fact that PSG is integrated into the VDP ASIC is not, by itself, a commutativity proof.
+- No R1/R2 semantic change is justified by these references alone. Keep the R2 oracle immutable and do not convert clock-frequency ratios into phase ordering.
