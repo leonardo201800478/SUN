@@ -195,12 +195,6 @@ def _validate_state(state: object) -> str | None:
         ):
             return "invalid deadline identity/generation"
         deadline_keys.add((deadline.identity, deadline.generation))
-        if deadline.state is PADeadlineState.SCHEDULED:
-            if state.watermark is not None and deadline.at_common <= state.watermark:
-                return "scheduled deadline is not strictly beyond the closed watermark"
-            if deadline.identity in active_deadline_identities:
-                return "multiple active generations for one deadline identity"
-            active_deadline_identities.add(deadline.identity)
         if (
             type(deadline.generation) is not int or deadline.generation < 0
             or not _exact(deadline.at_common)
@@ -213,6 +207,22 @@ def _validate_state(state: object) -> str | None:
             or set(deadline.committed_effects).intersection(deadline.pending_effects)
         ):
             return "invalid deadline effect ledger"
+        if deadline.state is PADeadlineState.SCHEDULED:
+            if state.watermark is not None and deadline.at_common <= state.watermark:
+                return "scheduled deadline is not strictly beyond the closed watermark"
+        # A generation remains effect-capable after claim/dispatch, and a failed
+        # dispatch with pending subeffects is recoverable only from that generation.
+        active = deadline.state in (
+            PADeadlineState.SCHEDULED,
+            PADeadlineState.CLAIMED,
+            PADeadlineState.DISPATCHED,
+        ) or (
+            deadline.state is PADeadlineState.FAILED and bool(deadline.pending_effects)
+        )
+        if active:
+            if deadline.identity in active_deadline_identities:
+                return "multiple effect-capable generations for one deadline identity"
+            active_deadline_identities.add(deadline.identity)
         if deadline.state is PADeadlineState.COMPLETED and deadline.pending_effects:
             return "completed deadline has pending effects"
         if deadline.state is PADeadlineState.FAILED and (
