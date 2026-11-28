@@ -241,13 +241,18 @@ def _decode_artifact(artifact: SnapshotArtifact):
     if canonical != artifact.payload:
         raise ValueError("snapshot payload is not canonical")
     if (
-        envelope["schema"] != SCHEMA
+        type(envelope["schema"]) is not str
+        or type(envelope["candidate"]) is not str
+        or type(envelope["profile"]) is not str
+        or type(envelope["model_version"]) is not str
+        or type(envelope["input_cursor"]) is not int
+        or envelope["schema"] != SCHEMA
         or envelope["candidate"] != artifact.candidate
         or envelope["profile"] != artifact.profile
         or envelope["model_version"] != artifact.model_version
         or envelope["input_cursor"] != artifact.input_cursor
     ):
-        raise ValueError("snapshot metadata disagrees with payload")
+        raise ValueError("snapshot metadata disagrees with payload or has invalid types")
     state = _decode_value(envelope["state"])
     invalid = _validate_candidate(artifact.candidate, state)
     if invalid is not None:
