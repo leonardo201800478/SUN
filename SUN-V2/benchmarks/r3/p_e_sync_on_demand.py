@@ -103,7 +103,7 @@ def _valid_phase_basis(value: object) -> bool:
         and type(value.scale_numerator) is int and value.scale_numerator > 0
         and type(value.scale_denominator) is int and value.scale_denominator > 0
         and len(value.validation_record_sha256) == 64
-        and all(char in "0123456789abcdefABCDEF"
+        and all(char in "0123456789abcdef"
                 for char in value.validation_record_sha256)
     )
 
@@ -155,7 +155,11 @@ def _validate(state: object) -> str | None:
             or (transition.phase_evidence is not None and (
                 not isinstance(transition.phase_evidence, str) or not transition.phase_evidence.strip()
             ))
-            or (transition.phase_basis is not None and not _valid_phase_basis(transition.phase_basis))
+            or ((transition.phase_order is None) != (transition.phase_evidence is None))
+            or (transition.phase_basis is not None and (
+                not _valid_phase_basis(transition.phase_basis)
+                or transition.phase_order is None or transition.phase_evidence is None
+            ))
             or type(transition.depends_on) is not tuple
             or any(not isinstance(item, str) or not item.strip()
                    for item in transition.depends_on)
