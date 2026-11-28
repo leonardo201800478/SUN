@@ -3,7 +3,7 @@
 **Sistema inicial:** Sega Master System (SMS)
 
 **Arquitetura temporal:** CHRONOS — híbrido mínimo, sujeito aos gates técnicos
-
+**Status:** R0 APROVADO; R1 APROVADO (v0.3.18, PR #1281); R2 APROVADO E MERGED (PR #1283, SHA 18b4352e16cf6ab275c4923a30acc3124754a1b0); R3 EM ANDAMENTO. P-A fechado como baseline experimental no HEAD 466f789bc9bfc73c7d6388f31b3f9142b48acf78, com exceções W06/W07 explicitamente aceitas; P-D/P-E autorizados a iniciar no mesmo corpus congelado. [CI #11122](https://github.com/leonardo201800478/SUN/actions/runs/46105849156) SUCCESS: R3 206/206, R2 256/256, corpus 119/1.483 e replayável 25/134, equivalência Linux/Windows. R1/R2 imutáveis; R3, R4 e R5 continuam pendentes; produção proibida antes de R5.
 **Estratégia:** componentes mínimos com contratos sólidos; integração vertical de produção somente após R5
 
 **Status:** R0 APROVADO; R1 APROVADO em 24/11/2026 (v0.3.18, PR #1281); R2 APROVADO E MERGED em 25/11/2026 (256/256 Linux/Windows, mutation PASS, CI #10798, merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`); R3 EM ANDAMENTO — CI #11116 no HEAD `3955ddd9ed15d35dbd5bc4c6fabec7c1da0fa667`: 206/206 testes R3 e 256/256 R2 por OS; 351 pontos por OS; corpus canônico 119/1.483 (digest `ab5e146eda37e8292159cc5440beca615c5b511383e3807b24adbacbb490056b`) e replayável 25/134 (digest `6189653bb3aa18fc5805f7dd1ae9708ea31b349d03da7ea9fcc906350cbcfbb6`), equivalência byte a byte Linux/Windows. W06 físico UNKNOWN; W07 relação B/C UNKNOWN, com divergência P-A/R2 preservada. PR #1284 aberta/pronta para revisão, sem review formal; 14 jobs SKIPPED. P-A não fechado; P-D/P-E NOT RUN; R4/R5 pendentes; produção bloqueada até R5.
@@ -109,7 +109,7 @@ Entregas:
 
 ### Fase 3 — protótipos temporais descartáveis (R3)
 
-**Status:** R3 EM ANDAMENTO — CI #11116 no HEAD `3955ddd9ed15d35dbd5bc4c6fabec7c1da0fa667`: 206/206 testes R3 e 256/256 R2 por OS; 351 pontos por OS; corpus canônico 119/1.483 (digest `ab5e146eda37e8292159cc5440beca615c5b511383e3807b24adbacbb490056b`) e replayável 25/134 (digest `6189653bb3aa18fc5805f7dd1ae9708ea31b349d03da7ea9fcc906350cbcfbb6`), equivalência byte a byte Linux/Windows. W06 físico UNKNOWN; W07 relação B/C UNKNOWN, com divergência P-A/R2 preservada. PR #1284 aberta/pronta para revisão, sem review formal; 14 jobs SKIPPED. P-A não fechado; P-D/P-E NOT RUN; R4/R5 pendentes; produção bloqueada até R5.
+**Status:** P-A fechado como baseline experimental no HEAD 466f789bc9bfc73c7d6388f31b3f9142b48acf78, com exceções W06/W07 explicitamente aceitas; P-D/P-E autorizados a iniciar no mesmo corpus congelado. [CI #11122](https://github.com/leonardo201800478/SUN/actions/runs/46105849156) SUCCESS: R3 206/206, R2 256/256, corpus 119/1.483 e replayável 25/134, equivalência Linux/Windows. R1/R2 imutáveis; R3, R4 e R5 continuam pendentes; produção proibida antes de R5.
 
 Entregas:
 - comparar P-A, P-D e P-E sob semântica, cenários e cargas equivalentes;
@@ -288,4 +288,4 @@ Estado atual:
 - A V1 oferece componentes e auditorias como fonte de conhecimento, mas não será dependência do V2.
 - R0 aprovado no escopo documental; nenhuma implementação de produção autorizada.
 
-**Próxima ação:** concluir a disposição formal dos gaps do oráculo R2 em W06/W07 e a revisão técnica da PR #1284. Manter UNKNOWN onde não houver evidência física; não fabricar fase ou precedência. P-A só poderá fechar com corpus, exceções e critérios de equivalência formalmente aceitos. P-D/P-E permanecem bloqueados até esse closeout; depois avançar para R4 e R5. Nenhum código de produção antes de R5.
+**Próxima ação:** implementar P-D (agenda discreta central) e P-E (sync-on-demand) como protótipos descartáveis, sobre o corpus congelado P-A e com as exceções W06/W07 preservadas. Executar equivalência de trace por operação, matrizes comparáveis e benchmarks; depois realizar revisão adversarial R4 e decisão R5. Não alterar R1/R2 nem promover código a produção antes de R5.
