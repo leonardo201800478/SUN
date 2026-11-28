@@ -1,7 +1,7 @@
 # CHRONOS R3 — plano de protótipos temporais descartáveis
 
 **Gate:** R3 — prototipagem e comparação
-**Estado:** P-A W00–W09 implementado em protótipo; CI #10902 SUCCESS Linux/Windows, 116/116 testes P-A e 256/256 testes R2 por OS; 351 pontos de benchmark por OS com parâmetros/digests equivalentes; equivalência canônica completa e revisão adversarial pendentes
+**Estado:** P-A fechado como baseline experimental no HEAD 466f789bc9bfc73c7d6388f31b3f9142b48acf78, com exceções W06/W07 explicitamente aceitas; P-D/P-E autorizados a iniciar no mesmo corpus congelado. [CI #11122](https://github.com/leonardo201800478/SUN/actions/runs/46105849156) SUCCESS: R3 206/206, R2 256/256, corpus 119/1.483 e replayável 25/134, equivalência Linux/Windows. R1/R2 imutáveis; R3, R4 e R5 continuam pendentes; produção proibida antes de R5.
 **Branch:** `research/chronos-r3-disposable-prototypes`
 **Base normativa:** R1 v0.3.18 aprovado; R2-T01–T15 aprovado e merged pela PR #1283
 **Escopo de sistema:** perfil temporal abstrato inicialmente; SMS NTSC/PAL somente quando os parâmetros forem fixados por fonte R0/R1 e cenário identificado.
@@ -184,3 +184,17 @@ The Linux/Windows artifacts from CI #11115 were downloaded and checked independe
 This resolves category-level fixture presence for W00–W09. It does not establish exhaustive coverage of every parameter/edge case, and the replayable differential currently compares P-A with R2—not P-D/P-E. The two W06/W07 divergences remain explicit and prevent claiming full P-A/R2 equivalence.
 
 Source audit also confirms that the available SMS references provide clock ratios and selected timing observations, but not an authenticated phase record for the exact W06 CPU/VDP pair or an event-specific causal/commutative result for W07 VDP/PSG. W06 remains UNKNOWN and physical W07 remains BLOCKED; no phase order is inferred from frequency ratios or ASIC integration alone.
+
+## 14. Decisão de closeout P-A e congelamento da baseline (28/11/2026)
+
+A decisão explícita do responsável pelo projeto está registrada em R3_PA_CLOSEOUT.md e no comentário de decisão da PR #1284. Ela supersede os blockers históricos dos itens 10–13 somente para permitir o closeout limitado da baseline P-A e a entrada em P-D/P-E; não apaga o histórico da revisão adversarial nem altera R1/R2.
+
+- Baseline P-A congelada no HEAD 466f789bc9bfc73c7d6388f31b3f9142b48acf78, validada pelo CI #11122: 206/206 testes R3 e 256/256 testes R2 por OS, emissor 184 testes por OS, 351 pontos por OS, corpus canônico 119/1.483 e replayável 25/134.
+- W06 permanece UNKNOWN quanto à fase física. P-A retorna IndeterminateCausalOrder sem base comum verificável; R2 aceita porque não modela phase_basis. Divergência explícita, não equivalência.
+- W07 permanece UNKNOWN quanto à relação par-a-par B/C. P-A retorna IndeterminateCausalOrder sem relação declarada; R2 avança no fixture porque o modelo aprovado não representa a relação B/C. Divergência explícita, não prova de precedência.
+- Os dois fixtures divergentes permanecem no corpus replayável e fora da contagem de cortes diferenciais positivos. Controles positivos e matriz pairwise continuam obrigatórios.
+- P-A fica fechado apenas como baseline experimental congelada, não como arquitetura selecionada nem implementação apta à produção.
+- P-D/P-E podem iniciar usando as mesmas fixtures, entradas, parâmetros e operações congeladas. Devem preservar os resultados P-A, inclusive W06/W07; não podem alterar R1/R2/P-A nem usar sua lógica no caminho medido.
+- O baseline só pode ser substituído por revisão explícita, novos digests, revalidação Linux/Windows e análise de regressão.
+
+P-D/P-E ainda não estão validados. R3 só fecha após comparação equivalente entre candidatos, resultados de custo e revisão adversarial R4; R5 permanece decisão arquitetural obrigatória. Nenhum código de produção antes de R5.
