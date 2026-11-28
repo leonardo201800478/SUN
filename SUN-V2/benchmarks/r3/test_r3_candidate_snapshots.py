@@ -325,6 +325,36 @@ class CandidateSnapshotTests(unittest.TestCase):
         self.assertEqual(replayed.input_cursor, 2)
         self.assertEqual(replayed.state, expected.state)
 
+    def test_capture_rejects_invalid_w08_ledger_for_both_candidates(self):
+        valid_book = partial_transaction_book()
+        duplicated = TransactionBook(
+            valid_book.transactions + (valid_book.transactions[0],)
+        )
+
+        pd_state = replace(pending_pd_state(), transactions=duplicated)
+        pd_result = capture(
+            "P-D", pd_state, profile="SMS-NTSC",
+            model_version="P-D-R3-W09-1", input_cursor=0,
+        )
+        self.assertEqual(pd_result.code, SnapshotCode.INVALID_INPUT)
+        self.assertIs(pd_result.active_state, pd_state)
+        self.assertIsNone(pd_result.artifact)
+
+        pe_state = SyncState(
+            domains=(
+                SyncDomain("cpu", Fraction(0), Fraction(10)),
+                SyncDomain("vdp", Fraction(0), Fraction(10)),
+            ),
+            transactions=duplicated,
+        )
+        pe_result = capture(
+            "P-E", pe_state, profile="SMS-NTSC",
+            model_version="P-E-R3-W09-1", input_cursor=0,
+        )
+        self.assertEqual(pe_result.code, SnapshotCode.INVALID_INPUT)
+        self.assertIs(pe_result.active_state, pe_state)
+        self.assertIsNone(pe_result.artifact)
+
     def test_restore_rejects_tampered_or_wrong_profile_artifact_atomically(self):
         state = pending_pd_state()
         artifact = capture(
