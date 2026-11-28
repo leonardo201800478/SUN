@@ -133,9 +133,15 @@ def _validate(state: object) -> str | None:
             scheduled.add(_key(event))
     if len(state.events) > state.max_events:
         return "agenda capacity exceeded"
+    for item in state.heap:
+        if (
+            type(item) is not tuple or len(item) != 3
+            or not _exact(item[0])
+            or not isinstance(item[1], str) or not item[1].strip()
+            or type(item[2]) is not int or item[2] < 0
+        ):
+            return "invalid heap entry"
     heap_keys = set(state.heap)
-    if any(not _exact(item[0]) for item in state.heap):
-        return "heap contains an inexact temporal coordinate"
     if heap_keys != scheduled or len(state.heap) != len(scheduled):
         return "heap and scheduled event records disagree"
     for index in range(1, len(state.heap)):
@@ -287,24 +293,29 @@ def claim_next(state: AgendaState, target_common: int | Fraction) -> AgendaResul
     target = Fraction(target_common)
     if state.heap and target < state.heap[0][0]:
         return AgendaResult(state, AgendaCode.BLOCKED, detail="no event due at target")
-    due = tuple(
-        item for item in state.events
-        if item.status is EventStatus.SCHEDULED and item.at_common <= target
-    )
-    if not due:
+    if not state.heap or state.heap[0][0] > target:
         return AgendaResult(state, AgendaCode.BLOCKED, detail="no scheduled event is due")
-    earliest = min(item.at_common for item in due)
-    group = tuple(item for item in due if item.at_common == earliest)
+    heap = list(state.heap)
+    earliest = heap[0][0]
+    same_instant_keys = []
+    while heap and heap[0][0] == earliest:
+        same_instant_keys.append(heapq.heappop(heap))
+    group = tuple(
+        _find(state, identity, generation)
+        for _, identity, generation in same_instant_keys
+    )
+    if any(item is None for item in group):
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="heap references a missing event")
     selected = _select_same_instant(state, group)
     if selected is None:
         return AgendaResult(state, AgendaCode.INDETERMINATE, detail="same-instant event relation is UNKNOWN or cyclic")
+    for key in same_instant_keys:
+        if key != _key(selected):
+            heapq.heappush(heap, key)
     claimed = AgendaEvent(
         selected.identity, selected.generation, selected.owner,
         selected.at_common, selected.effect_id, EventStatus.CLAIMED,
     )
-    heap = list(state.heap)
-    heap.remove(_key(selected))
-    heapq.heapify(heap)
     events = tuple(
         claimed if (item.identity, item.generation) ==
         (selected.identity, selected.generation) else item
