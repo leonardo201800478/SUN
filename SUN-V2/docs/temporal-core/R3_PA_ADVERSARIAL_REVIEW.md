@@ -658,3 +658,25 @@ The first validation run after introducing setup-python failed at environment pr
 The run validates the three snapshot/W07 corrections and the Python reproducibility correction. The W09 Scheduled records in valid round-trip fixtures now use D=9 with W=8; invalid D≤W cases remain covered as negative tests. No R1 v0.3.18 or R2 executable-oracle changes were made.
 
 **Disposition remains limited:** W06 physical UNKNOWN; W07 physical B/C BLOCKED; P-A still has a recorded P-A/R2 microstep divergence and no closeout; P-D/P-E NOT RUN/BLOCKED; R3 in progress; R4/R5 pending. This CI does not prove physical causality, hardware SMS behavior, Rust performance, or 60 FPS.
+
+
+### 17.7 P-A global microstep barrier replaced by explicit pairwise adjudication
+
+The final review also identified that `p_a_microsteps.py` blocked a later microstep solely because an earlier numeric level remained pending. That was not evidence of cross-participant causality or commutativity. The disposable P-A candidate now stores explicit pairwise constraints and no longer treats numeric microstep levels as a global precedence relation:
+
+- `UNKNOWN` pair -> `IndeterminateCausalOrder` without mutation.
+- Explicit predecessor -> `Blocked`.
+- Explicit causal successor or explicit pairwise commutativity -> processing may proceed.
+- Per-obligation `commutative` booleans are retained only as R2-compatible metadata; two true values do not imply a pairwise relation.
+- Future child declarations and pair constraints are preserved in the candidate state and replay adapter. The W07 replayable fixture keeps the B/C UNKNOWN relation as an explicit P-A/R2 divergence.
+
+Tests cover UNKNOWN despite both unary flags being true, explicit commutativity allowing later-microstep overtaking, explicit B-before-C predecessor blocking, and rejection of causal relations inconsistent with the assigned microstep sequence. P-A microstep tests: 14; isolated W07 pairwise-cycle tests: 22.
+
+**CI #11111:** [run 46100522893](https://github.com/leonardo201800478/SUN/actions/runs/46100522893) — **SUCCESS** on HEAD `226a852f7d2b132ce2d585e921aaeb79fc73d711`.
+- R3: **206/206 PASS Linux and Windows**; corpus emitter 184 tests PASS.
+- Canonical: 119 fixtures / 1,483 cuts; digest `ab5e146eda37e8292159cc5440beca615c5b511383e3807b24adbacbb490056b`.
+- Replayable: 25 fixtures / 134 operations-cuts; digest `6189653bb3aa18fc5805f7dd1ae9708ea31b349d03da7ea9fcc906350cbcfbb6`.
+- Corpora byte-identical Linux/Windows; R2 independent Linux and R2 Python Windows PASS; seven applicable P-A matrices PASS; workflow validation, documentation hygiene and Rust quality supervisor PASS.
+- Windows CPU-time samples `SKIPPED_COARSE_RESOLUTION`; hardware/runtime/desktop jobs SKIPPED.
+
+This corrects the P-A model's software-level adjudication gap, not the physical B/C relationship. W07 physical B/C remains BLOCKED; W06 physical UNKNOWN; P-A has no closeout; P-D/P-E NOT RUN/BLOCKED; R3 remains in progress; R4/R5 pending. No production code or R2 oracle changes were made.
