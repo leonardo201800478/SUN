@@ -125,3 +125,13 @@ Implementar fechamento causal apenas dos participantes declarados para a observa
 - R5 deve aprovar explicitamente a arquitetura, ADRs e plano de integração.
 - Nenhum código de produção CHRONOS/V2 é autorizado antes de R5.
 - Não há validação de timing físico SMS, Z80, VDP, PSG, YM2413, frame pacing ou 60 FPS neste closeout.
+
+## 8. P-D/P-E — primeiro corte validado, arquitetura ainda não selecionada
+
+CI #11145 (run 46107673712) validou 241/241 testes R3 em Linux/Windows, 184 testes de corpus por OS, R2 256/256 por OS, corpora equivalentes e 36 pontos pareados P-D/P-E. Os detalhes e limitações estão em R3_PD_PE_PROGRESS.md.
+
+- P-D vs P-A: equivalência funcional nos pontos W01/W02 medidos; razão mediana dos p50 6,44× Linux e 7,08× Windows; pior ponto 37,78×/39,17×.
+- P-E vs P-A: equivalência funcional nos pontos W03/W04 medidos; razão mediana 1,31× Linux e 1,38× Windows; pior ponto 12,83×/11,23×, fan-in 16/observações frequentes.
+- CPU-time Windows permanece SKIPPED_COARSE_RESOLUTION. Resultados são OBSERVATION sintética Python, não desempenho Rust/hardware.
+- P-D ainda não inclui A(E), safe horizons, watermark e C<D/C=D/C>D (W05). P-E ainda não integra transações W08 nem snapshots/replay W09. Nenhum candidato está completo em W00–W09.
+- Disposição: não selecionar P-D/P-E ainda. Otimizar estruturas/índices e repetir matriz; manter P-A congelado e W06/W07 UNKNOWN. R3/R4/R5 continuam pendentes; produção proibida antes de R5.
