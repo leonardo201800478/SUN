@@ -2042,5 +2042,42 @@ class CandidateDifferentialTests(unittest.TestCase):
 
 
 
+    def test_p_d_w05_non_agenda_state_is_rejected_without_dereference(self):
+        names = frozenset(("cpu",))
+        context = AgendaContext(
+            (AgendaParticipant("cpu", Fraction(0), Fraction(100)),),
+            names,
+        )
+        operations = (
+            ("publish", p_d_publish(
+                None, identity="evt", generation=1, owner="cpu",
+                at_common=Fraction(10), effect_id="effect",
+            )),
+            ("publish_context", p_d_publish_with_context(
+                None, context, owner="cpu", identity="evt",
+                generation=1, at_common=Fraction(10),
+                effect_id="effect",
+            )),
+            ("request_cancel", p_d_request_cancel(
+                None, context, owner="cpu", identity="evt",
+                generation=1, at_common=Fraction(5),
+            )),
+            ("arbitrate", p_d_arbitrate_cancellations(None)),
+            ("close_watermark", p_d_close_watermark(None, Fraction(10))),
+            ("dispatch", p_d_dispatch_event(None, "evt", 1)),
+            ("complete", p_d_complete(None, "evt", 1)),
+            ("replace", p_d_replace_with_context(
+                None, context, owner="cpu", identity="evt",
+                generation=1, cancel_at=Fraction(5), new_generation=2,
+                new_at_common=Fraction(10), new_effect_id="replacement",
+            )),
+        )
+        for operation, result in operations:
+            with self.subTest(operation=operation):
+                self.assertEqual(result.code, AgendaCode.INVALID_INPUT)
+                self.assertIsNone(result.state)
+
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
