@@ -6,7 +6,7 @@
 
 **Estratégia:** componentes mínimos com contratos sólidos; integração vertical de produção somente após R5
 
-**Status:** R0 APROVADO; R1 APROVADO em 24/11/2026 (conteúdo v0.3.18, SHA `ac912f342ff303b3fdc554b90d00e85b23d86c76`, PR #1281, merge SHA `88e105d6495f7f5105502e53666a7b0d29f77572`); implementação R2-T01–T15 COMPLETA E VALIDADA (256/256 Linux e Windows, CI #10785); gate formal R2 PENDENTE de revisão humana externa independente e aprovação explícita; R3–R5 BLOQUEADOS; nenhuma implementação de produção iniciada
+**Status:** R0 APROVADO; R1 APROVADO em 24/11/2026 (v0.3.18, PR #1281); R2 APROVADO E MERGED em 25/11/2026 (256/256 Linux/Windows, mutation PASS, CI #10798, merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`); R3 EM ANDAMENTO — CI #11116 no HEAD `3955ddd9ed15d35dbd5bc4c6fabec7c1da0fa667`: 206/206 testes R3 e 256/256 R2 por OS; 351 pontos por OS; corpus canônico 119/1.483 (digest `ab5e146eda37e8292159cc5440beca615c5b511383e3807b24adbacbb490056b`) e replayável 25/134 (digest `6189653bb3aa18fc5805f7dd1ae9708ea31b349d03da7ea9fcc906350cbcfbb6`), equivalência byte a byte Linux/Windows. W06 físico UNKNOWN; W07 relação B/C UNKNOWN, com divergência P-A/R2 preservada. PR #1284 aberta/pronta para revisão, sem review formal; 14 jobs SKIPPED. P-A não fechado; P-D/P-E NOT RUN; R4/R5 pendentes; produção bloqueada até R5.
 
 **Branch de trabalho:** `architecture/sun-v2-foundation`
 
@@ -97,7 +97,7 @@ Entregas:
 
 ### Fase 2 — modelo de referência independente (R2)
 
-**Status: IMPLEMENTAÇÃO EXECUTÁVEL T01–T15 COMPLETA PARA VALIDAÇÃO EXTERNA; GATE FORMAL PENDENTE — issue #1282 / PR #1283.** Consulte [R2_CLOSEOUT.md](docs/temporal-core/R2_CLOSEOUT.md), [R2_REFERENCE_MODEL.md](docs/temporal-core/R2_REFERENCE_MODEL.md) e a matriz [R2_TRACEABILITY.md](docs/temporal-core/R2_TRACEABILITY.md). Nenhum R3 ou código de produção autorizado.
+**Status: GATE APROVADO E MERGED — PR #1283, merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`; CI #10798 validou 256/256 Linux e Windows, mutation PASS, documentação e Actionlint.** Consulte [R2_CLOSEOUT.md](docs/temporal-core/R2_CLOSEOUT.md), [R2_REFERENCE_MODEL.md](docs/temporal-core/R2_REFERENCE_MODEL.md) e [R2_TRACEABILITY.md](docs/temporal-core/R2_TRACEABILITY.md).
 
 Entregas:
 - oráculo simples e independente do algoritmo/representação candidata;
@@ -105,9 +105,11 @@ Entregas:
 - cenários adversariais com seeds, perfil, entradas, primeira divergência e estado mínimo reproduzível;
 - UNKNOWN físico preservado como indeterminação/restrição, nunca promovido a FACT.
 
-**Gate R2:** não aprovado. A implementação e a cobertura executável T01–T15 existem, evidências executáveis, mutation testing, JSON e runner Windows estão PASS; os 11 findings P2 conhecidos foram respondidos e resolvidos. A saída do gate ainda exige revisão humana externa independente do SHA final sem blockers e aprovação explícita do responsável. A revisão Codex foi solicitada, mas o serviço respondeu limite de uso atingido. Nenhum R3 começa antes de todos esses itens e da aprovação formal R2.
+**Gate R2:** APROVADO e merged em `main` pelo commit `18b4352e16cf6ab275c4923a30acc3124754a1b0`, após CI #10798 verde e fechamento dos findings documentais. A aprovação autoriza somente a fase R3 de protótipos descartáveis; produção continua proibida antes de R5.
 
-### Fase 3 — protótipos temporais descartáveis (R3; somente após R1 e R2)
+### Fase 3 — protótipos temporais descartáveis (R3)
+
+**Status:** R3 EM ANDAMENTO — CI #11116 no HEAD `3955ddd9ed15d35dbd5bc4c6fabec7c1da0fa667`: 206/206 testes R3 e 256/256 R2 por OS; 351 pontos por OS; corpus canônico 119/1.483 (digest `ab5e146eda37e8292159cc5440beca615c5b511383e3807b24adbacbb490056b`) e replayável 25/134 (digest `6189653bb3aa18fc5805f7dd1ae9708ea31b349d03da7ea9fcc906350cbcfbb6`), equivalência byte a byte Linux/Windows. W06 físico UNKNOWN; W07 relação B/C UNKNOWN, com divergência P-A/R2 preservada. PR #1284 aberta/pronta para revisão, sem review formal; 14 jobs SKIPPED. P-A não fechado; P-D/P-E NOT RUN; R4/R5 pendentes; produção bloqueada até R5.
 
 Entregas:
 - comparar P-A, P-D e P-E sob semântica, cenários e cargas equivalentes;
@@ -286,4 +288,4 @@ Estado atual:
 - A V1 oferece componentes e auditorias como fonte de conhecimento, mas não será dependência do V2.
 - R0 aprovado no escopo documental; nenhuma implementação de produção autorizada.
 
-**Próxima ação:** concluir o fechamento formal de R1 na issue #1270, registrando a auditoria da seção 14 e a revisão Codex sem major issues do HEAD exato. Manter R2 bloqueado até aprovação explícita de R1; depois, iniciar R2 como modelo independente e propriedades executáveis, sem antecipar protótipos R3 ou produção. R3 só começa após R1 e R2 aprovados; R4/R5 precedem produção. Não retomar S0 nem criar benchmark substituto.
+**Próxima ação:** concluir a disposição formal dos gaps do oráculo R2 em W06/W07 e a revisão técnica da PR #1284. Manter UNKNOWN onde não houver evidência física; não fabricar fase ou precedência. P-A só poderá fechar com corpus, exceções e critérios de equivalência formalmente aceitos. P-D/P-E permanecem bloqueados até esse closeout; depois avançar para R4 e R5. Nenhum código de produção antes de R5.
