@@ -72,13 +72,19 @@ Expanded P-E HEAD `c8e86be79acba313c9b7abf882ceed415c3a44b5`, CI #46174772392 SU
 - Canonical/replayable corpus Linux/Windows equivalence and Rust quality/unit regression passed.
 - Linux canonical P-A corpus: 119 fixtures / 1,483 cuts (1,472 differential + 11 property cuts); replayable corpus: 30 fixtures / 143 operations/cuts.
 - The initial 120-permutation run at SHA `73ec4168569526c5c9c5485ff76266eb15ecacec` exposed one failure: the explicit five-event chain returned Indeterminate because P-E compared only direct dependencies. The corrected transitive reachability implementation and R2-topology partial-order fixture pass on the final SHA above.
+
+Expanded tri-model HEAD `009ab3d8b375c382dad7fecc7ee1df2a573351e2`, CI #46175394407 SUCCESS:
+- R3 suite 286 tests Linux/Windows.
+- R2 independent 256/256 Linux and R2 Python 256/256 Windows.
+- Canonical/replayable corpus Linux/Windows equivalence and Rust quality/unit regression passed.
+- Linux canonical P-A corpus: 119 fixtures / 1,483 cuts (1,472 differential + 11 property cuts); replayable corpus: 30 fixtures / 143 operations/cuts.
+- Four direct P-E↔P-A↔R2 permutation tests each cover all 120 input permutations: commutative, noncommutative UNKNOWN, explicit five-event dependency chain, and exact R2 partial-order DAG.
 - Production SMS/Z80/VDP/PSG/YM2413/CPAL/SDL3/Slint/WGPU/scheduler jobs: SKIPPED, not PASS.
 
 ## 7. Remaining FUP-02 work
 
-1. The four five-event permutation families now have direct P-E↔P-A↔R2 comparisons. Extend the same tri-model approach to W03/W04 observation fixtures only where all three state representations have the same observable contract.
+1. Extend the same tri-model approach to W03/W04 observation fixtures only where all three state representations have the same observable contract.
 2. Clarify/retain the distinct missing-dependency classifications (Blocked vs InvalidInput) with discriminating fixtures; do not normalize the result codes for superficial parity.
 3. Decide whether P-E's observation/alters boundary can be mapped to the R2 causal contract without inventing state fields. If not, document it as non-comparable.
 4. Keep the pre-applied causal ledger absent/non-comparable unless P-E acquires an independently justified representation.
-5. Extend the cross-model differential only where the fixture/state representation is genuinely equivalent; do not normalize distinct result codes.
-6. Keep FUP-02 PARTIAL while W06 remains UNKNOWN and W07 remains UNKNOWN/BLOCKED; neither uncertainty is a reason to invent a synthetic resolution.
+5. Keep FUP-02 PARTIAL while W06 remains UNKNOWN and W07 remains UNKNOWN/BLOCKED; neither uncertainty is a reason to invent a synthetic resolution.
