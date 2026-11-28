@@ -157,6 +157,12 @@ class DiscreteAgendaTests(unittest.TestCase):
         self.assertEqual(result.code, AgendaCode.RESOURCE_EXHAUSTED)
         self.assertIs(result.state, state)
 
+    def test_malformed_heap_entry_is_rejected_without_exception(self):
+        state = AgendaState(heap=((Fraction(1),),))
+        result = claim_next(state, Fraction(2))
+        self.assertEqual(result.code, AgendaCode.INVALID_INPUT)
+        self.assertIs(result.state, state)
+
     def test_float_coordinate_is_rejected(self):
         result = publish(
             AgendaState(), identity="event", generation=0, owner="cpu",
