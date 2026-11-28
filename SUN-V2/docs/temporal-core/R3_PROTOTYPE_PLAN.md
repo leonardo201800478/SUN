@@ -198,3 +198,12 @@ A decisão explícita do responsável pelo projeto está registrada em R3_PA_CLO
 - O baseline só pode ser substituído por revisão explícita, novos digests, revalidação Linux/Windows e análise de regressão.
 
 P-D/P-E ainda não estão validados. R3 só fecha após comparação equivalente entre candidatos, resultados de custo e revisão adversarial R4; R5 permanece decisão arquitetural obrigatória. Nenhum código de produção antes de R5.
+## 15. P-D/P-E — primeira fatia e benchmark pareado (28/11/2026)
+
+Registro detalhado: R3_PD_PE_PROGRESS.md. CI #11145 no HEAD 9feec831eb3c99294d8077aedfda46a896306dc4 — SUCCESS; 241/241 testes R3 Linux/Windows, 184 testes de corpus por OS, R2 256/256 por OS, equivalência dos corpora e 36 pontos pareados P-D/P-E PASS.
+
+- P-D: heap agenda e claims equivalentes a P-A nos cenários medidos W01/W02. A matriz aponta P-D 6,44× mais lento na mediana dos p50 por ponto no Linux e 7,08× no Windows; worst-case 37,78×/39,17×. A cópia/validação linear do estado e lookup por evento anulam a vantagem do heap. Otimizar para heap + índice e validação local, preservando atomicidade.
+- P-E: sync-on-demand equivalente a P-A nos cenários medidos W03/W04. A matriz aponta 1,31× no Linux e 1,38× no Windows na mediana dos p50; worst-case 12,83×/11,23×, concentrado em fan-in alto e observações frequentes. Criar índices persistentes por owner/identidade/relação e evitar full scans por observação.
+- Os resultados são OBSERVATION de protótipos Python sintéticos. CPU-time Windows SKIPPED_COARSE_RESOLUTION; wall-time só comparável dentro de cada runner. Não inferir performance Rust ou hardware.
+- W05 (admission/cancellation/watermark) ainda não está integrado no P-D. W08/W09 (transactions/snapshot/replay) ainda não estão integrados no P-E. Nenhum candidato foi comparado em todo W00–W09.
+- P-D/P-E não selecionados. Repetir matriz após otimizações, adicionar W05/W08/W09 e preservar W06/W07 UNKNOWN. R3 continua em andamento; R4/R5 pendentes.
