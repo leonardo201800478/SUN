@@ -253,7 +253,8 @@ class CandidateSnapshotTests(unittest.TestCase):
                 make_replay_event(4, "noop", {}),
                 make_replay_event(6, "noop", {}),
             ),
-            apply=apply,
+            expected_candidate="P-D", expected_profile="SMS-NTSC",
+            expected_version="P-D-R3-W09-1", apply=apply,
         )
         self.assertEqual(replayed.code, SnapshotCode.INVALID_INPUT)
         self.assertEqual(replayed.input_cursor, 3)
