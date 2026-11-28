@@ -189,7 +189,7 @@ def run_p_d_point(domains: int, count: int, density: str,
     """Compare P-A linear close with P-D heap claim on identical W01/W02 fixtures."""
     p_a_book, _, p_d_state, target = _build_deadline_pair(domains, count, density)
     p_a_operation = lambda: _p_a_close_operation(p_a_book, target)
-    p_d_operation = lambda: _p_d_claim_operation(p_d_state, target)
+    p_d_operation = lambda: _p_d_close_operation(p_d_state, target)
 
     expected = p_a_operation()
     if p_d_operation() != expected:
