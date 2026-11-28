@@ -326,6 +326,34 @@ class SyncOnDemandTests(unittest.TestCase):
         self.assertIs(second.state._transition_times_by_owner, first.state._transition_times_by_owner)
         self.assertEqual(second.state.observed, ("write", "observe"))
 
+
+    def test_precomputed_commutative_group_cache_is_used_for_same_instant_cut(self):
+        state = SyncState(
+            domains=(
+                SyncDomain("cpu", Fraction(0), Fraction(5)),
+                SyncDomain("vdp", Fraction(0), Fraction(5)),
+                SyncDomain("psg", Fraction(0), Fraction(5)),
+            ),
+            transitions=(
+                SyncTransition("vdp-write", "vdp", Fraction(1)),
+                SyncTransition("psg-write", "psg", Fraction(1)),
+            ),
+            constraints=(
+                SyncConstraint("vdp-write", "psg-write", PairRelation.COMMUTATIVE),
+            ),
+        )
+        key = frozenset(("vdp-write", "psg-write"))
+        self.assertIn(key, state._commutative_groups)
+        cached = state._commutative_groups[key]
+        result = synchronize(
+            state,
+            requested_domains=("cpu", "vdp", "psg"),
+            target_common=Fraction(1),
+        )
+        self.assertEqual(result.code, SyncCode.REACHED)
+        self.assertEqual(result.state.observed, tuple(item.identity for item in cached))
+        self.assertIs(result.state._commutative_groups, state._commutative_groups)
+
     def test_float_target_is_rejected(self):
         state = SyncState(
             domains=(SyncDomain("cpu", Fraction(0), Fraction(2)),),
