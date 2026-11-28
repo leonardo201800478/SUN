@@ -120,10 +120,10 @@ def reserve_and_submit(
     invalid = _validate_state(state)
     if invalid is not None:
         return BridgeResult(BridgeCode.INVALID_INPUT, state, invalid)
-    if state.book.transactions:
+    if state.book.transactions and state.book.transactions[0].spec.identity != spec.identity:
         return BridgeResult(
             BridgeCode.INVALID_INPUT, state,
-            "composition bridge admits one transaction per isolated state",
+            "composition bridge admits one transaction identity per isolated state",
         )
     invalid = _validate_spec(spec)
     if invalid is not None:
@@ -152,6 +152,14 @@ def reserve_and_submit(
             "every commit marker requires exactly one fixture-supplied effect mapping",
         )
 
+    mapping = tuple(
+        (spec.identity, marker, effect) for marker, effect in marker_effects
+    )
+    if state.book.transactions and state.marker_effects != mapping:
+        return BridgeResult(
+            BridgeCode.INVALID_INPUT, state,
+            "retry changed the transaction marker/effect mapping",
+        )
     reserved = reserve_resource(
         state.resources, spec.identity, amount,
         tuple(effect for _, effect in marker_effects),
@@ -163,9 +171,6 @@ def reserve_and_submit(
         # Immutable results let us discard the tentative reservation atomically.
         return BridgeResult(_tx_code(submitted.code), state, submitted.detail)
 
-    mapping = tuple(
-        (spec.identity, marker, effect) for marker, effect in marker_effects
-    )
     updated = replace(
         state, book=submitted.book, resources=reserved.ledger,
         marker_effects=mapping,
