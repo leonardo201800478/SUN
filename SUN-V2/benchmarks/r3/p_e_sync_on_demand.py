@@ -1,0 +1,295 @@
+"""Disposable P-E candidate: synchronization-on-demand.
+
+The coordinator computes a declared dependency closure only for the requested
+observation. There is no global progress agenda and unrelated domains are not
+advanced. Time coordinates are exact and UNKNOWN event pairs remain unresolved.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from enum import Enum
+from fractions import Fraction
+
+
+class SyncCode(str, Enum):
+    REACHED = "Reached"
+    STOPPED_AT = "StoppedAt"
+    BLOCKED = "Blocked"
+    INDETERMINATE = "IndeterminateCausalOrder"
+    LATE_INPUT = "LateInput"
+    INVALID_INPUT = "InvalidInput"
+
+
+class PairRelation(str, Enum):
+    FIRST_BEFORE_SECOND = "first_before_second"
+    SECOND_BEFORE_FIRST = "second_before_first"
+    COMMUTATIVE = "commutative"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True)
+class SyncDomain:
+    identity: str
+    progress: Fraction
+    safe_horizon: Fraction
+
+
+@dataclass(frozen=True)
+class SyncTransition:
+    identity: str
+    owner: str
+    at_common: Fraction
+    depends_on: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class SyncConstraint:
+    first_id: str
+    second_id: str
+    relation: PairRelation
+
+
+@dataclass(frozen=True)
+class SyncState:
+    domains: tuple[SyncDomain, ...]
+    transitions: tuple[SyncTransition, ...]
+    constraints: tuple[SyncConstraint, ...] = ()
+    observed: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class SyncResult:
+    state: SyncState
+    code: SyncCode
+    reached_common: Fraction | None = None
+    synchronized_domains: tuple[str, ...] = ()
+    detail: str = ""
+
+
+def _exact(value: object) -> bool:
+    """Accept exact integer/rational coordinates only."""
+    return type(value) in (int, Fraction)
+
+
+def _validate(state: object) -> str | None:
+    """Validate domain progress, transition ownership and dependency identities."""
+    if not isinstance(state, SyncState):
+        return "invalid sync state"
+    if type(state.domains) is not tuple or type(state.transitions) is not tuple:
+        return "state collections must be immutable tuples"
+    domain_ids: set[str] = set()
+    for domain in state.domains:
+        if (
+            not isinstance(domain, SyncDomain)
+            or not isinstance(domain.identity, str) or not domain.identity.strip()
+            or not _exact(domain.progress) or not _exact(domain.safe_horizon)
+            or domain.progress > domain.safe_horizon
+            or domain.identity in domain_ids
+        ):
+            return "invalid or duplicated domain state"
+        domain_ids.add(domain.identity)
+    transition_ids: set[str] = set()
+    for transition in state.transitions:
+        if (
+            not isinstance(transition, SyncTransition)
+            or not isinstance(transition.identity, str) or not transition.identity.strip()
+            or not isinstance(transition.owner, str) or transition.owner not in domain_ids
+            or not _exact(transition.at_common)
+            or type(transition.depends_on) is not tuple
+            or any(not isinstance(item, str) or not item.strip()
+                   for item in transition.depends_on)
+            or transition.identity in transition_ids
+            or transition.identity in transition.depends_on
+            or len(set(transition.depends_on)) != len(transition.depends_on)
+        ):
+            return "invalid or duplicated transition descriptor"
+        transition_ids.add(transition.identity)
+    for transition in state.transitions:
+        if any(item not in transition_ids for item in transition.depends_on):
+            return "transition dependency does not exist"
+    if type(state.observed) is not tuple or any(
+        not isinstance(item, str) or item not in transition_ids
+        for item in state.observed
+    ):
+        return "invalid observed transition ledger"
+    if len(set(state.observed)) != len(state.observed):
+        return "duplicate observed transition"
+    if type(state.constraints) is not tuple:
+        return "constraints must be an immutable tuple"
+    pairs: set[frozenset[str]] = set()
+    for item in state.constraints:
+        if (
+            not isinstance(item, SyncConstraint)
+            or item.first_id not in transition_ids
+            or item.second_id not in transition_ids
+            or item.first_id == item.second_id
+            or not isinstance(item.relation, PairRelation)
+        ):
+            return "invalid pairwise relation descriptor"
+        pair = frozenset((item.first_id, item.second_id))
+        if pair in pairs:
+            return "duplicate unordered pair relation"
+        pairs.add(pair)
+    return None
+
+
+def _relation(state: SyncState, first: str, second: str) -> PairRelation:
+    """Read a declared relation, or UNKNOWN when no pair evidence exists."""
+    for item in state.constraints:
+        if (item.first_id, item.second_id) == (first, second):
+            return item.relation
+        if (item.first_id, item.second_id) == (second, first):
+            if item.relation is PairRelation.FIRST_BEFORE_SECOND:
+                return PairRelation.SECOND_BEFORE_FIRST
+            if item.relation is PairRelation.SECOND_BEFORE_FIRST:
+                return PairRelation.FIRST_BEFORE_SECOND
+            return item.relation
+    return PairRelation.UNKNOWN
+
+
+def _dependency_order(first: SyncTransition, second: SyncTransition) -> PairRelation:
+    """Return the causal relation induced by declared transition dependencies."""
+    if first.identity in second.depends_on:
+        return PairRelation.FIRST_BEFORE_SECOND
+    if second.identity in first.depends_on:
+        return PairRelation.SECOND_BEFORE_FIRST
+    return PairRelation.UNKNOWN
+
+
+def _closure(
+    state: SyncState, requested: tuple[str, ...], target: Fraction
+) -> tuple[set[str], set[str]] | None:
+    """Build the transitive domain/transition closure for one observation."""
+    domains = {item.identity: item for item in state.domains}
+    transitions = {item.identity: item for item in state.transitions}
+    selected_domains = set(requested)
+    selected_transitions: set[str] = set()
+    changed = True
+    while changed:
+        changed = False
+        for transition in state.transitions:
+            if transition.owner not in selected_domains:
+                continue
+            if transition.at_common > target or transition.identity in selected_transitions:
+                continue
+            selected_transitions.add(transition.identity)
+            changed = True
+            for dependency_id in transition.depends_on:
+                dependency = transitions[dependency_id]
+                if dependency.at_common > target:
+                    return None
+                if dependency.identity not in selected_transitions:
+                    selected_transitions.add(dependency.identity)
+                    changed = True
+                if dependency.owner not in selected_domains:
+                    selected_domains.add(dependency.owner)
+                    changed = True
+    if any(item not in domains for item in selected_domains):
+        return None
+    return selected_domains, selected_transitions
+
+
+def _choose(
+    state: SyncState, group: tuple[SyncTransition, ...]
+) -> SyncTransition | None:
+    """Choose a minimal same-instant transition only from proven pair relations."""
+    if len(group) == 1:
+        return group[0]
+    incoming = {item.identity: 0 for item in group}
+    ids = [item.identity for item in group]
+    for index, first_id in enumerate(ids):
+        for second_id in ids[index + 1:]:
+            first = next(item for item in group if item.identity == first_id)
+            second = next(item for item in group if item.identity == second_id)
+            relation = _dependency_order(first, second)
+            declared = _relation(state, first_id, second_id)
+            if relation is PairRelation.UNKNOWN:
+                relation = declared
+            elif declared is not PairRelation.UNKNOWN and declared is not relation:
+                return None
+            if relation is PairRelation.UNKNOWN:
+                return None
+            if relation is PairRelation.FIRST_BEFORE_SECOND:
+                incoming[second_id] += 1
+            elif relation is PairRelation.SECOND_BEFORE_FIRST:
+                incoming[first_id] += 1
+    ready = sorted(identity for identity, count in incoming.items() if count == 0)
+    if not ready:
+        return None
+    if len(ready) > 1:
+        for index, first in enumerate(ready):
+            for second in ready[index + 1:]:
+                if _dependency_order(
+                    next(item for item in group if item.identity == first),
+                    next(item for item in group if item.identity == second),
+                ) is PairRelation.UNKNOWN and _relation(state, first, second) is not PairRelation.COMMUTATIVE:
+                    return None
+    return next(item for item in group if item.identity == ready[0])
+
+
+def synchronize(
+    state: SyncState,
+    *,
+    requested_domains: tuple[str, ...],
+    target_common: int | Fraction,
+) -> SyncResult:
+    """Advance only the requested domains and their transitive causal closure."""
+    invalid = _validate(state)
+    if invalid is not None:
+        return SyncResult(state, SyncCode.INVALID_INPUT, detail=invalid)
+    if (
+        type(requested_domains) is not tuple or not requested_domains
+        or any(not isinstance(item, str) or not item.strip() for item in requested_domains)
+        or len(set(requested_domains)) != len(requested_domains)
+        or not _exact(target_common)
+    ):
+        return SyncResult(state, SyncCode.INVALID_INPUT, detail="invalid synchronization request")
+    domains = {item.identity: item for item in state.domains}
+    if any(item not in domains for item in requested_domains):
+        return SyncResult(state, SyncCode.BLOCKED, detail="requested participant is unknown")
+    target = Fraction(target_common)
+    if any(target < domains[item].progress for item in requested_domains):
+        return SyncResult(state, SyncCode.LATE_INPUT, detail="target is behind requested domain progress")
+    closure = _closure(state, requested_domains, target)
+    if closure is None:
+        return SyncResult(state, SyncCode.BLOCKED, detail="dependency closure is incomplete or lies beyond target")
+    selected_domains, selected_transitions = closure
+    if any(target < domains[item].progress for item in selected_domains):
+        return SyncResult(state, SyncCode.LATE_INPUT, detail="target is behind a causal participant")
+    frontier = min(target, *(domains[item].safe_horizon for item in selected_domains))
+    pending = [
+        item for item in state.transitions
+        if item.identity in selected_transitions
+        and item.identity not in state.observed
+        and item.at_common <= frontier
+    ]
+    observed = list(state.observed)
+    while pending:
+        earliest = min(item.at_common for item in pending)
+        group = tuple(item for item in pending if item.at_common == earliest)
+        selected = _choose(state, group)
+        if selected is None:
+            return SyncResult(
+                state, SyncCode.INDETERMINATE, detail="same-instant dependency relation is UNKNOWN or cyclic"
+            )
+        if any(dependency not in observed for dependency in selected.depends_on):
+            return SyncResult(
+                state, SyncCode.BLOCKED, detail="causal predecessor has not been observed"
+            )
+        observed.append(selected.identity)
+        pending.remove(selected)
+    updated_domains = tuple(
+        SyncDomain(
+            item.identity,
+            frontier if item.identity in selected_domains else item.progress,
+            item.safe_horizon,
+        )
+        for item in state.domains
+    )
+    updated = SyncState(updated_domains, state.transitions, state.constraints, tuple(observed))
+    code = SyncCode.REACHED if frontier == target else SyncCode.STOPPED_AT
+    return SyncResult(
+        updated, code, frontier, tuple(sorted(selected_domains)),
+        "requested causal closure synchronized" if code is SyncCode.REACHED
+        else "safe horizon stopped the requested causal closure",
+    )
