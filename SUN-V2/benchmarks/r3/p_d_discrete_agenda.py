@@ -866,7 +866,7 @@ def claim_next(state: AgendaState, target_common: int | Fraction) -> AgendaResul
     updated = AgendaState(
         tuple(heap), events, state.constraints, state.max_events,
         state.watermark_common, state.pending_cancellations,
-        state.max_microsteps,
+        state.max_microsteps, state.transactions,
     )
     return AgendaResult(updated, AgendaCode.CLAIMED, claimed)
 
