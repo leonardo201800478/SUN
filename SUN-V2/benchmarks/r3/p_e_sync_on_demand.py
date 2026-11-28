@@ -113,15 +113,6 @@ def _validate(state: object) -> str | None:
             for item in transition.depends_on
         ):
             return "causal predecessor is later than its dependent transition"
-    observed_set = set(state.observed) if type(state.observed) is tuple and all(
-        isinstance(item, str) for item in state.observed
-    ) else set()
-    if any(
-        dependency not in observed_set
-        for identity in observed_set
-        for dependency in transition_by_id[identity].depends_on
-    ):
-        return "observed transition is missing an observed predecessor"
     if type(state.observed) is not tuple or any(
         not isinstance(item, str) or item not in transition_ids
         for item in state.observed
@@ -129,6 +120,13 @@ def _validate(state: object) -> str | None:
         return "invalid observed transition ledger"
     if len(set(state.observed)) != len(state.observed):
         return "duplicate observed transition"
+    observed_set = set(state.observed)
+    if any(
+        dependency not in observed_set
+        for identity in observed_set
+        for dependency in transition_by_id[identity].depends_on
+    ):
+        return "observed transition is missing an observed predecessor"
     if type(state.constraints) is not tuple:
         return "constraints must be an immutable tuple"
     pairs: set[frozenset[str]] = set()
