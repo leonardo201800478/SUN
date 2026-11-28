@@ -449,7 +449,7 @@ def _validate(state: object) -> str | None:
         )
         for event in state.events
     ):
-        return "dispatched or completed event is beyond the closed watermark"
+        return "INVARIANT_VIOLATION: dispatched or completed event is beyond closed watermark"
     if state.watermark_common is not None and any(
         event.status is EventStatus.CLAIMED
         and event.at_common > state.watermark_common
@@ -506,18 +506,6 @@ def _validate(state: object) -> str | None:
         if pair in pairs:
             return "duplicate unordered pair relation"
         pairs.add(pair)
-    processed = (
-        EventStatus.DISPATCHED,
-        EventStatus.COMPLETED,
-    )
-    if any(
-        item.status in processed and (
-            state.watermark_common is None
-            or item.at_common > state.watermark_common
-        )
-        for item in state.events
-    ):
-        return "INVARIANT_VIOLATION: dispatched or completed event is beyond closed watermark"
     return None
 
 
