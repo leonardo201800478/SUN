@@ -305,3 +305,14 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 - Recovery TransactionBook/ResourceLedger permanece **IncomparableRecovery**; os caminhos não devem ser aplicados sequencialmente como se fossem uma transação composta.
 - Generation do TransactionBook permanece parte do descritor estável; divergência de generation sob a mesma identity é retry inválido, não replacement.
 - Documento criado na branch `research/chronos-r3-follow-up`, commit `6c5d1403619e3b8a1fbf8184f11e19f0eed0f412`. FUP-03 continua PARCIAL.
+
+
+### Revalidação FUP-01 e consolidação documental FUP-01..03 (28/11/2026)
+
+- **FUP-01 / PR #1290:** seis regressões adicionais em W05 cobrem conjunto esperado vazio, clock conversion inválido, watermark divergente, limite de microstep em cancelamento, request C>D pré-construído e cancelamento após W fechado.
+- HEAD validado: `0ba1de3994e59e289be840e3a0b5535cdc22f34b`; CI #46174170146 [SUCCESS](https://github.com/leonardo201800478/SUN/actions/runs/46174170146). R3 Linux/Windows, R2 independente Linux, R2 Python Windows, equivalência de corpora canônico/replayável e Rust quality/unit regression: PASS.
+- A matriz W05 foi atualizada no documento `R3_FUP01_W05_TRACEABILITY.md`, commit `8823bb90316fac32f78085adb2fe0d120bbc2c3d`. Os gaps estruturais restantes e casos não comparáveis continuam explícitos; FUP-01 permanece PARCIAL.
+- O CI confirmou R3 prototype suite 289 tests por plataforma; canonical P-A report 125 fixtures/1.496 cuts (1.485 differential + 11 property cuts); replayable corpus 30 fixtures/143 operations/cuts. Os IDs divergentes W06/W07 continuam registrados como limitações, sem inferência física.
+- **FUP-02:** matriz `R3_FUP02_W03_W04_TRACEABILITY.md`, versão sem trailing whitespace no commit `bbf6dbde27cdf1db2e19ea62a113c85cee0a720d`; CI documental #46174219914 SUCCESS. P-E↔P-A e P-A↔R2 continuam como arestas distintas; W06 UNKNOWN e W07 UNKNOWN/BLOCKED.
+- **FUP-03:** auditoria `R3_FUP03_W08_BOUNDARY_AUDIT.md`, versão sem trailing whitespace no commit `334a65d608ab8ebfff623e40910507f4d852c7d5`. Decisão registrada: sem capacidade lógica/max_transactions no TransactionBook; eventual budget de memória é política interna futura, sem valor fixo e sem equivalência com capacidade física. Recovery continua IncomparableRecovery.
+- Todos os documentos e alterações permanecem em branches de pesquisa. Nenhum merge executado; nenhuma implementação de produção CHRONOS/V2 iniciada.
