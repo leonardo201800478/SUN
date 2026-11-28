@@ -28,6 +28,7 @@ class AgendaCode(str, Enum):
     INDETERMINATE = "IndeterminateCausalOrder"
     LATE_INPUT = "LateInput"
     INVALID_INPUT = "InvalidInput"
+    INVARIANT_VIOLATION = "InvariantViolation"
     RESOURCE_EXHAUSTED = "ResourceExhausted"
 
 
@@ -198,10 +199,11 @@ def _context_view(
             or not isinstance(item.identity, str) or not item.identity.strip()
             or not _exact(item.progress_common)
             or not _exact(item.safe_horizon_common)
-            or item.safe_horizon_common < item.progress_common
             or item.identity in participants
         ):
             return AgendaCode.INVALID_INPUT, "invalid or duplicate participant", {}, Fraction(0), Fraction(0)
+        if item.safe_horizon_common < item.progress_common:
+            return AgendaCode.INVARIANT_VIOLATION, "participant safe horizon regressed behind progress", {}, Fraction(0), Fraction(0)
         if item.identity not in context.expected_participants:
             return AgendaCode.INVALID_INPUT, "undeclared participant", {}, Fraction(0), Fraction(0)
         participants[item.identity] = item
@@ -215,7 +217,7 @@ def _context_view(
     )
     safe = min(item.safe_horizon_common for item in participants.values())
     if safe < frontier:
-        return AgendaCode.INDETERMINATE, "safe horizon is behind the admission frontier", participants, frontier, safe
+        return AgendaCode.INVARIANT_VIOLATION, "safe horizon is behind the admission frontier", participants, frontier, safe
     return None, "", participants, frontier, safe
 
 
@@ -603,8 +605,10 @@ def request_cancel(
     code, detail, participants, frontier, _ = _context_view(state, context)
     if code is not None:
         return AgendaResult(state, code, detail=detail)
-    if not isinstance(owner, str) or owner not in context.expected_participants:
-        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="cancellation owner is not declared")
+    if not isinstance(owner, str) or not owner.strip():
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="invalid cancellation owner")
+    if owner not in context.expected_participants:
+        return AgendaResult(state, AgendaCode.BLOCKED, detail="cancellation owner is absent from the declared participant set")
     if (
         not isinstance(identity, str) or not identity.strip()
         or type(generation) is not int or generation < 0
