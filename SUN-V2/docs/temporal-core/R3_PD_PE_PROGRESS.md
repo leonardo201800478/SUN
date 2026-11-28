@@ -99,7 +99,7 @@ O benchmark deve ser executado novamente no mesmo conjunto de parâmetros e nos 
 
 ## Current status — W08 differential, P-D/P-E paired results (CI #11195)
 
-**Validated HEAD:** `43afa850d713ec12593d0ba83a35205deadc8cc2`.  
+**Validated HEAD:** `43afa850d713ec12593d0ba83a35205deadc8cc2`.
 **CI #11195:** [run 46151720301](https://github.com/leonardo201800478/SUN/actions/runs/46151720301) — **SUCCESS**.
 
 This section supersedes earlier status/count/benchmark statements in this document where they differ.
