@@ -680,3 +680,22 @@ Tests cover UNKNOWN despite both unary flags being true, explicit commutativity 
 - Windows CPU-time samples `SKIPPED_COARSE_RESOLUTION`; hardware/runtime/desktop jobs SKIPPED.
 
 This corrects the P-A model's software-level adjudication gap, not the physical B/C relationship. W07 physical B/C remains BLOCKED; W06 physical UNKNOWN; P-A has no closeout; P-D/P-E NOT RUN/BLOCKED; R3 remains in progress; R4/R5 pending. No production code or R2 oracle changes were made.
+
+
+### 17.8 CI #11112 — latest HEAD validation and disposition (28/11/2026)
+
+**Validated HEAD:** `7c07a9e6f7d6ee731aa7ba3495dca444a152300c`. **Run:** [CI #11112 / 46100695208](https://github.com/leonardo201800478/SUN/actions/runs/46100695208) — **SUCCESS**.
+
+- R3 disposable suite: **206/206 PASS Linux and 206/206 PASS Windows**, Python 3.14.10 on both.
+- Corpus emitter: **184 tests PASS** on both platforms.
+- Independent R2 reference: **256/256 PASS Linux and 256/256 PASS Windows**; deliberate boundary mutation checks PASS on both.
+- Seven P-A synthetic matrices: 351 points per OS; all functional matrix jobs PASS.
+- Canonical corpus: **119 fixtures / 1,483 cuts** (1,472 differential + 11 property), logical digest `ab5e146eda37e8292159cc5440beca615c5b511383e3807b24adbacbb490056b`.
+- Replayable corpus: **25 fixtures / 134 operations-cuts**, preserving W06/W07 divergences, logical digest `6189653bb3aa18fc5805f7dd1ae9708ea31b349d03da7ea9fcc906350cbcfbb6`.
+- Dedicated equivalence job verified canonical and replayable artifacts byte-identical across Linux/Windows. Runner-specific artifact-file SHA-256 values differ because output paths are serialized; logical digests and normalized comparison are the intended comparison.
+- Workflow validation, documentation patch hygiene, change-impact classification, corpus equivalence and Rust quality/unit regression supervisor: PASS.
+- Run summary: **9 SUCCESS / 14 SKIPPED**. Skipped hardware/runtime/subsystem jobs are not PASS. Windows benchmark CPU-time remains `SKIPPED_COARSE_RESOLUTION`.
+
+The run validates the current candidate HEAD and the follow-up corrections described in §17.5–17.7. It does not supply a physical W06 phase record or a demonstrated physical W07 B/C relation. W06 remains UNKNOWN; physical W07 B/C remains BLOCKED. The replayable corpus is 25 fixtures/134 operations-cuts, but this count alone does not establish complete declared W00–W09 coverage or authorize P-D/P-E; fixture-to-workload coverage and P-A entry criteria still require explicit closeout.
+
+**Disposition:** P-A remains NOT CLOSED; P-D/P-E remain NOT RUN/BLOCKED; R3 remains in progress; R4/R5 remain pending. The formal independent PR review is still outstanding (no submitted review or inline review threads were present at this check). R1 v0.3.18 and the approved R2 oracle remain unchanged. No production CHRONOS/V2 implementation, physical SMS timing, Rust performance or 60 FPS claim is approved.
