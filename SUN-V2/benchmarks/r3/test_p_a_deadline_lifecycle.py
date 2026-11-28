@@ -1166,9 +1166,18 @@ class PADeadlineLifecycleTests(unittest.TestCase):
             (Fraction(1), ADeadlineCode.INVARIANT_VIOLATION),
         ):
             with self.subTest(horizon=horizon):
+                invalid_cpu = object.__new__(AParticipant)
+                for key, value in {
+                    "name": "cpu",
+                    "progress": Fraction(2),
+                    "safe_horizon": horizon,
+                    "units_per_common": Fraction(1),
+                    "common_offset": Fraction(0),
+                }.items():
+                    object.__setattr__(invalid_cpu, key, value)
                 context = ADeadlineContext(
                     (
-                        AParticipant("cpu", Fraction(2), horizon),
+                        invalid_cpu,
                         AParticipant("vdp", Fraction(2), Fraction(100)),
                     ),
                     frozenset({"cpu", "vdp"}),
