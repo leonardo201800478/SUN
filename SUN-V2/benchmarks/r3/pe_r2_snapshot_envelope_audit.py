@@ -39,7 +39,9 @@ class EnvelopeAuditResult:
 @dataclass(frozen=True)
 class PEEnvelopeComparison:
     profile_matches: bool
-    model_version_matches: bool
+    candidate_model_version: str
+    r2_model_version: str
+    model_versions_comparable: bool
     harness_input_cursor: int
     cursor_comparable_to_r2: bool
     not_comparable: tuple[str, ...]
@@ -112,22 +114,20 @@ def compare_pe_r2_envelopes(
             EnvelopeAuditCode.INVALID_INPUT, detail="invalid or inconsistent R2 envelope metadata"
         )
     profile_matches = candidate.profile == reference.profile
-    version_matches = candidate.model_version == reference.model_version
     comparison = PEEnvelopeComparison(
         profile_matches=profile_matches,
-        model_version_matches=version_matches,
+        candidate_model_version=candidate.model_version,
+        r2_model_version=reference.model_version,
+        model_versions_comparable=False,
         harness_input_cursor=candidate.input_cursor,
         cursor_comparable_to_r2=False,
         not_comparable=(
+            "P-E and R2 model_version identify different model namespaces; equality is not semantic equivalence",
             "P-E input_cursor has no R2 accepted-input-log counterpart",
             "P-E SyncState is not projected into R2 MachineState",
             "P-E TransactionBook equivalence is not established by envelope metadata",
             "P-E has no R2 InterruptRecord/INT-ack representation",
         ),
     )
-    code = (
-        EnvelopeAuditCode.OK
-        if profile_matches and version_matches
-        else EnvelopeAuditCode.MISMATCH
-    )
+    code = EnvelopeAuditCode.OK if profile_matches else EnvelopeAuditCode.MISMATCH
     return EnvelopeComparisonResult(code, comparison)
