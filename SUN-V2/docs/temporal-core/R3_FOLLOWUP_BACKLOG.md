@@ -483,3 +483,9 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 
 - Novo teste diferencial test_p_d_w05_scheduled_event_behind_closed_watermark_is_rejected_by_all_operations: D=4/W=5 preconstruído; publish/cancel/arbitrate/close/dispatch/complete/replace retornam InvalidInput e preservam o estado. P-D não tem equivalente direto a schedule_microstep.
 - HEAD 0138fe5d26e7947b2aa5833176fbce5b49156f4f; CI ainda não apareceu na consulta. FUP-01 segue PARCIAL.
+
+
+### FUP-01 — escopo do status Failed
+
+- R2/P-A possuem status terminal Failed e o incluem na validação de watermark; suas APIs W05 não definem transição para Failed. P-D não tem o status e não pode espelhar o caso preconstruído Failed.
+- Partial-effect/recovery não será atribuído ao deadline W05: permanece nos contratos ResourceLedger/transaction/snapshot. Não adicionar Failed isoladamente sem contrato de transição e crosswalk.
