@@ -9,6 +9,7 @@ from p_e_sync_on_demand import (
     SyncCode,
     SyncConstraint,
     SyncDomain,
+    SyncPhaseBasis,
     SyncState,
     SyncTransition,
     synchronize,
@@ -208,6 +209,93 @@ class SyncOnDemandTests(unittest.TestCase):
             state, requested_domains=("cpu",), target_common=Fraction(5)
         )
         self.assertEqual(result.code, SyncCode.INVALID_INPUT)
+        self.assertIs(result.state, state)
+
+
+    @staticmethod
+    def phase_basis(basis_id: str) -> SyncPhaseBasis:
+        return SyncPhaseBasis(
+            profile_id="SMS-NTSC-SYNTHETIC",
+            profile_revision="fixture-v1",
+            coordinate="master-clock",
+            unit="mclk",
+            scale_numerator=1,
+            scale_denominator=1,
+            basis_id=basis_id,
+            basis_revision="rev-1",
+            validation_record_id="synthetic-record-" + basis_id,
+            validation_record_sha256="b" * 64,
+        )
+
+    def test_w06_different_phase_bases_remain_unknown(self):
+        state = SyncState(
+            domains=(
+                SyncDomain("cpu", Fraction(0), Fraction(10)),
+                SyncDomain("vdp", Fraction(0), Fraction(10)),
+            ),
+            transitions=(
+                SyncTransition(
+                    "phase-a", "cpu", Fraction(5), phase_order=1,
+                    phase_evidence="shared-synthetic-label",
+                    phase_basis=self.phase_basis("basis-a"),
+                ),
+                SyncTransition(
+                    "phase-b", "vdp", Fraction(5), phase_order=2,
+                    phase_evidence="shared-synthetic-label",
+                    phase_basis=self.phase_basis("basis-b"),
+                ),
+            ),
+        )
+        result = synchronize(
+            state, requested_domains=("cpu", "vdp"), target_common=Fraction(5)
+        )
+        self.assertEqual(result.code, SyncCode.INDETERMINATE)
+        self.assertIs(result.state, state)
+
+    def test_w06_common_phase_basis_is_a_synthetic_positive_control(self):
+        basis = self.phase_basis("shared-basis")
+        state = SyncState(
+            domains=(
+                SyncDomain("cpu", Fraction(0), Fraction(10)),
+                SyncDomain("vdp", Fraction(0), Fraction(10)),
+            ),
+            transitions=(
+                SyncTransition(
+                    "phase-a", "cpu", Fraction(5), phase_order=1,
+                    phase_evidence="capture-a", phase_basis=basis,
+                ),
+                SyncTransition(
+                    "phase-b", "vdp", Fraction(5), phase_order=2,
+                    phase_evidence="capture-b", phase_basis=basis,
+                ),
+            ),
+        )
+        result = synchronize(
+            state, requested_domains=("cpu", "vdp"), target_common=Fraction(5)
+        )
+        self.assertEqual(result.code, SyncCode.REACHED)
+        self.assertEqual(result.state.observed, ("phase-a", "phase-b"))
+
+    def test_w07_unknown_b_c_relation_is_not_inferred_from_microstep(self):
+        state = SyncState(
+            domains=(
+                SyncDomain("cpu", Fraction(0), Fraction(10)),
+                SyncDomain("vdp", Fraction(0), Fraction(10)),
+                SyncDomain("psg", Fraction(0), Fraction(10)),
+            ),
+            transitions=(
+                SyncTransition("a", "cpu", Fraction(5), microstep=0),
+                SyncTransition("b", "vdp", Fraction(5), microstep=0),
+                SyncTransition("c", "psg", Fraction(5), ("a",), microstep=1),
+            ),
+            constraints=(
+                SyncConstraint("a", "b", PairRelation.COMMUTATIVE),
+            ),
+        )
+        result = synchronize(
+            state, requested_domains=("cpu", "vdp", "psg"), target_common=Fraction(5)
+        )
+        self.assertEqual(result.code, SyncCode.INDETERMINATE)
         self.assertIs(result.state, state)
 
     def test_float_target_is_rejected(self):
