@@ -390,3 +390,18 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 - Ambos os findings P2 da PR #1293 foram respondidos e as duas threads estão resolvidas.
 - Auditoria W08 atualizada em `R3_FUP03_W08_BOUNDARY_AUDIT.md`, commit `fd385c2ee09ac2ac644f7d774d57cf56b135e1f5`.
 - **FUP-03 permanece PARCIAL** exclusivamente quanto aos limites de recovery composto e à necessidade de ampliar a matriz/invariantes além dos cenários já cobertos. A correção SAMPLE não resolve IncomparableRecovery nem altera a decisão de capacidade do TransactionBook.
+
+
+### FUP-01 — global horizon e precedência de obrigações validados (28/11/2026)
+
+- HEAD PR #1290: `80416f457478f0564ebd3a3d07f21c14648d7a8a`.
+- CI #46176113812 [SUCCESS](https://github.com/leonardo201800478/SUN/actions/runs/46176113812): R3 299 testes Linux/Windows; R2 independente 256/256 Linux; R2 Python 256/256 Windows; corpus canônico/replayável byte-equivalent; Rust quality/unit regression PASS. Rust workspace regression SKIPPED (alteração apenas Python).
+- Cinco novos diferenciais P-A/R2 cobrem horizonte regressivo/não exato, horizonte global atrás de W na publicação e cancelamento, violação de horizonte conhecida antes do bloqueio por conjunto incompleto e obrigação pendente inconsistente em publicação/cancelamento.
+- Canonical P-A report: 135 fixtures / 1.525 cuts (1.514 differential + 11 property cuts); replayable corpus: 30 fixtures / 143 operações/cortes. W06/W07 continuam como divergências declaradas e UNKNOWN.
+- Matriz atual: `R3_FUP01_W05_TRACEABILITY.md`, commit `713263f38c91be3df3ba2b014e51a816db8c164f`. O inventário R2-T06 soma 78 métodos em nove grupos.
+- FUP-01 permanece PARCIAL apenas para as lacunas estruturais/malformed-book e alguns invariantes de lifecycle explicitamente listados na matriz.
+
+### FUP-03 — auditoria SAMPLE evidence clarification
+
+- A matriz W08 distingue o diferencial P-A/P-D/P-E do TransactionBook compartilhado e o teste de integração específico da ponte SAMPLE. O wrapper da ponte não altera a evidência de hardware nem a semântica do ResourceLedger.
+- Documento atualizado: `R3_FUP03_W08_BOUNDARY_AUDIT.md`, commit `1806a153a5364ab6746610578ec0555e3c636c62`; CI documental #46175970726 SUCCESS.
