@@ -475,5 +475,11 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 
 - A validação global foi limitada a Dispatched/Completed sem W ou além de W. Claimed sem W continua sendo estado candidate-local de claim_next(), não equivalente ao claim atômico de close_watermark(); dispatch o rejeita e completion continua inválida antes de dispatch.
 - O código de erro da violação global foi corrigido para InvariantViolation no validador compartilhado, sem alterar a regra Scheduled <= W.
-- Novo candidato: HEAD 6a0ed8d1fc3da272dd9d467f0d1affdff837620d; CI #46188000773 ainda QUEUED/PENDING na última consulta.
+- Candidato 6a0ed8d1fc3da272dd9d467f0d1affdff837620d validado por CI #46188000773 SUCCESS: R2 258/258 Linux/Windows; R3 316/316 Linux/Windows; corpus emitter 202/202 por OS; equivalência byte-identical dos corpora; mutation checks e Rust quality/unit regression PASS. Jobs de produção/hardware e Rust workspace SKIPPED.
 - FUP-01 permanece PARCIAL até CI e crosswalk restantes; Failed/efeitos parciais não representados.
+
+
+### FUP-01 — Scheduled <= W em todas as operações (28/11/2026; CI pendente)
+
+- Novo teste diferencial test_p_d_w05_scheduled_event_behind_closed_watermark_is_rejected_by_all_operations: D=4/W=5 preconstruído; publish/cancel/arbitrate/close/dispatch/complete/replace retornam InvalidInput e preservam o estado. P-D não tem equivalente direto a schedule_microstep.
+- HEAD 0138fe5d26e7947b2aa5833176fbce5b49156f4f; CI ainda não apareceu na consulta. FUP-01 segue PARCIAL.
