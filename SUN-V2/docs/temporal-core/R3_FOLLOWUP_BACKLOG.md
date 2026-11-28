@@ -256,3 +256,12 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 - A matriz P-E/P-A W03/W04 agora inclui dependência explícita não comutativa entre transições no mesmo instante e repetição idempotente de observação sem avanço de domínio não solicitado, além dos casos já cobertos de empate desconhecido/comutativo, participante ausente, observação retroativa, cadeia transitiva e observações frequentes.
 - **FUP-02 permanece PARCIAL:** cobertura causal ampliada, mas W06 fase física segue UNKNOWN e W07 relação B/C UNKNOWN/BLOCKED. Divergências sintéticas e metadata de commutativity continuam sem autoridade de hardware.
 - PRs #1290 e #1291 seguem abertas, sem merge. Jobs de produção SMS/Z80/VDP/PSG/YM2413/CPAL/SDL3/Slint/WGPU/scheduler SKIPPED; nenhum resultado desses jobs é contado como PASS.
+
+
+### Atualização FUP-03 — composição W08 TransactionBook/ResourceLedger (28/11/2026)
+
+- **PR #1293 / CI #11289:** [SUCCESS](https://github.com/leonardo201800478/SUN/actions/runs/46170082575), SHA `7d4eb4dbaa729a49a588fe4f7bbbcf8e4742efa5`. R3 282/282 Linux e Windows; P-A corpus 186/186 por OS; R2 independente 256/256 Linux; R2 Python 256/256 Windows; mutation checks, corpora byte-identical e Rust quality/unit regression SUCCESS.
+- Nova composição experimental `transaction_resource_bridge.py`: reserva + submit atômicos com amount e associação marker→effect fornecidos explicitamente pela fixture; commit marker + commit effect atômicos/idempotentes; validação de igualdade dos ledgers committed/pending; falha preserva prefixo committed e sufixo pending.
+- A ponte é restrita a uma transação por estado experimental. Não define capacidade de hardware, custo por transação, bytes, ciclos ou limite de armazenamento do TransactionBook.
+- Recovery foi auditado como **IncomparableRecovery**: TransactionBook.recover retoma InProgress preservando markers pendentes; ResourceLedger.recover termina o ledger e commita efeitos pendentes. A auditoria não muta o estado e não aplica ambos os recovery paths.
+- **FUP-03 permanece PARCIAL:** ainda falta decidir se um limite de armazenamento do TransactionBook é necessário como orçamento interno de implementação, separado de hardware; recovery composto não tem semântica equivalente demonstrada; generation replacement do TransactionBook não é inferido.
