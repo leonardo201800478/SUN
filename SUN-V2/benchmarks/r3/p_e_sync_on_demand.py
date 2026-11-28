@@ -6,9 +6,11 @@ advanced. Time coordinates are exact and UNKNOWN event pairs remain unresolved.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from enum import Enum
 from fractions import Fraction
+from types import MappingProxyType
 
 
 class SyncCode(str, Enum):
@@ -73,6 +75,43 @@ class SyncState:
     transitions: tuple[SyncTransition, ...]
     constraints: tuple[SyncConstraint, ...] = ()
     observed: tuple[str, ...] = ()
+    _transition_by_id: Mapping[str, SyncTransition] = field(
+        default_factory=lambda: MappingProxyType({}), repr=False, compare=False
+    )
+    _transitions_by_owner: Mapping[str, tuple[SyncTransition, ...]] = field(
+        default_factory=lambda: MappingProxyType({}), repr=False, compare=False
+    )
+    _relation_index: Mapping[frozenset[str], SyncConstraint] = field(
+        default_factory=lambda: MappingProxyType({}), repr=False, compare=False
+    )
+    _validated: bool = field(default=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        if not self._transition_by_id and self.transitions:
+            by_id = {
+                item.identity: item for item in self.transitions
+                if isinstance(item, SyncTransition) and isinstance(item.identity, str)
+            }
+            object.__setattr__(self, "_transition_by_id", MappingProxyType(by_id))
+        if not self._transitions_by_owner and self.transitions:
+            grouped: dict[str, list[SyncTransition]] = {}
+            for item in self.transitions:
+                if isinstance(item, SyncTransition) and isinstance(item.owner, str):
+                    grouped.setdefault(item.owner, []).append(item)
+            object.__setattr__(
+                self,
+                "_transitions_by_owner",
+                MappingProxyType({key: tuple(value) for key, value in grouped.items()}),
+            )
+        if not self._relation_index and self.constraints:
+            relations = {
+                frozenset((item.first_id, item.second_id)): item
+                for item in self.constraints
+                if isinstance(item, SyncConstraint)
+                and isinstance(item.first_id, str)
+                and isinstance(item.second_id, str)
+            }
+            object.__setattr__(self, "_relation_index", MappingProxyType(relations))
 
 
 @dataclass(frozen=True)
@@ -169,7 +208,7 @@ def _validate(state: object) -> str | None:
         ):
             return "invalid or duplicated transition descriptor"
         transition_ids.add(transition.identity)
-    transition_by_id = {item.identity: item for item in state.transitions}
+    transition_by_id = state._transition_by_id
     for transition in state.transitions:
         if any(item not in transition_ids for item in transition.depends_on):
             return "transition dependency does not exist"
@@ -213,16 +252,16 @@ def _validate(state: object) -> str | None:
 
 def _relation(state: SyncState, first: str, second: str) -> PairRelation:
     """Read a declared relation, or UNKNOWN when no pair evidence exists."""
-    for item in state.constraints:
-        if (item.first_id, item.second_id) == (first, second):
-            return item.relation
-        if (item.first_id, item.second_id) == (second, first):
-            if item.relation is PairRelation.FIRST_BEFORE_SECOND:
-                return PairRelation.SECOND_BEFORE_FIRST
-            if item.relation is PairRelation.SECOND_BEFORE_FIRST:
-                return PairRelation.FIRST_BEFORE_SECOND
-            return item.relation
-    return PairRelation.UNKNOWN
+    item = state._relation_index.get(frozenset((first, second)))
+    if item is None:
+        return PairRelation.UNKNOWN
+    if (item.first_id, item.second_id) == (first, second):
+        return item.relation
+    if item.relation is PairRelation.FIRST_BEFORE_SECOND:
+        return PairRelation.SECOND_BEFORE_FIRST
+    if item.relation is PairRelation.SECOND_BEFORE_FIRST:
+        return PairRelation.FIRST_BEFORE_SECOND
+    return item.relation
 
 
 def _dependency_order(first: SyncTransition, second: SyncTransition) -> PairRelation:
@@ -239,29 +278,28 @@ def _closure(
 ) -> tuple[set[str], set[str]] | None:
     """Build the transitive domain/transition closure for one observation."""
     domains = {item.identity: item for item in state.domains}
-    transitions = {item.identity: item for item in state.transitions}
+    transitions = state._transition_by_id
     selected_domains = set(requested)
     selected_transitions: set[str] = set()
     changed = True
     while changed:
         changed = False
-        for transition in state.transitions:
-            if transition.owner not in selected_domains:
-                continue
-            if transition.at_common > target or transition.identity in selected_transitions:
-                continue
-            selected_transitions.add(transition.identity)
-            changed = True
-            for dependency_id in transition.depends_on:
-                dependency = transitions[dependency_id]
-                if dependency.at_common > target:
-                    return None
-                if dependency.identity not in selected_transitions:
-                    selected_transitions.add(dependency.identity)
-                    changed = True
-                if dependency.owner not in selected_domains:
-                    selected_domains.add(dependency.owner)
-                    changed = True
+        for owner in tuple(selected_domains):
+            for transition in state._transitions_by_owner.get(owner, ()):
+                if transition.at_common > target or transition.identity in selected_transitions:
+                    continue
+                selected_transitions.add(transition.identity)
+                changed = True
+                for dependency_id in transition.depends_on:
+                    dependency = transitions[dependency_id]
+                    if dependency.at_common > target:
+                        return None
+                    if dependency.identity not in selected_transitions:
+                        selected_transitions.add(dependency.identity)
+                        changed = True
+                    if dependency.owner not in selected_domains:
+                        selected_domains.add(dependency.owner)
+                        changed = True
     if any(item not in domains for item in selected_domains):
         return None
     return selected_domains, selected_transitions
@@ -275,10 +313,7 @@ def _choose(
         return group[0]
     incoming = {item.identity: 0 for item in group}
     by_id = {item.identity: item for item in group}
-    relation_index = {
-        frozenset((item.first_id, item.second_id)): item
-        for item in state.constraints
-    }
+    relation_index = state._relation_index
 
     def declared_relation(first_id: str, second_id: str) -> PairRelation:
         item = relation_index.get(frozenset((first_id, second_id)))
@@ -342,7 +377,7 @@ def synchronize(
     target_common: int | Fraction,
 ) -> SyncResult:
     """Advance only the requested domains and their transitive causal closure."""
-    invalid = _validate(state)
+    invalid = None if state._validated else _validate(state)
     if invalid is not None:
         return SyncResult(state, SyncCode.INVALID_INPUT, detail=invalid)
     if (
@@ -368,7 +403,9 @@ def synchronize(
     if any(frontier < domains[item].progress for item in selected_domains):
         return SyncResult(state, SyncCode.INVALID_INPUT, detail="causal safe horizon regresses an existing participant")
     pending = [
-        item for item in state.transitions
+        item
+        for owner in selected_domains
+        for item in state._transitions_by_owner.get(owner, ())
         if item.identity in selected_transitions
         and item.identity not in state.observed
         and item.at_common <= frontier
@@ -396,7 +433,16 @@ def synchronize(
         )
         for item in state.domains
     )
-    updated = SyncState(updated_domains, state.transitions, state.constraints, tuple(observed))
+    updated = SyncState(
+        updated_domains,
+        state.transitions,
+        state.constraints,
+        tuple(observed),
+        state._transition_by_id,
+        state._transitions_by_owner,
+        state._relation_index,
+        True,
+    )
     code = SyncCode.REACHED if frontier == target else SyncCode.STOPPED_AT
     return SyncResult(
         updated, code, frontier, tuple(sorted(selected_domains)),
