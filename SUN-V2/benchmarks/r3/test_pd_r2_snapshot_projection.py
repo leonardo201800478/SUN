@@ -17,7 +17,7 @@ from pd_r2_snapshot_projection import (  # noqa: E402
     ProjectionCode, project_pd_shared_state,
 )
 from snapshot_reference import (  # noqa: E402
-    DeadlineRecord, DeadlineState, InterruptRecord, MachineState,
+    AckCommit, AckPresence, DeadlineRecord, DeadlineState, InterruptRecord, MachineState,
     SnapshotCode, capture as r2_capture, restore as r2_restore,
 )
 
