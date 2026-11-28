@@ -132,7 +132,7 @@ P-D still has no Failed status or partial-effect ledger, so R2's Failed-state ro
 
 - R2 test_scheduled_deadline_behind_closed_watermark_is_rejected_by_all_operations foi comparado com P-D. O protótipo já rejeitava globalmente eventos Scheduled em/atrás de W, mas faltava um teste diferencial que percorresse as operações equivalentes e verificasse atomicidade.
 - Novo teste: test_p_d_w05_scheduled_event_behind_closed_watermark_is_rejected_by_all_operations. Estado preconstruído D=4/W=5; publish, cancel request, arbitration, close W, dispatch, completion e replacement devem retornar InvalidInput sem alterar o estado. schedule_microstep não possui operação P-D correspondente e permanece explicitamente não comparável.
-- HEAD atual da PR #1290: 0138fe5d26e7947b2aa5833176fbce5b49156f4f. CI ainda não apareceu na consulta; não há PASS para este teste até validar Linux/Windows no SHA exato.
+- HEAD 0138fe5d26e7947b2aa5833176fbce5b49156f4f validado por CI #46188350099 SUCCESS: R2 258/258 Linux e Windows; R3 317/317 Linux e Windows; corpus emitter 202/202 por OS; corpora canônico/replayável byte-identical; mutation checks R2 e Rust quality/unit regression PASS. O novo teste Scheduled D=4/W=5 passou Linux/Windows.
 
 
 ### Precisão de escopo — status Failed (28/11/2026)
