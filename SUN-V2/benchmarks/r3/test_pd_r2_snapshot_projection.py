@@ -15,23 +15,29 @@ from p_d_discrete_agenda import (  # noqa: E402
 from pd_r2_snapshot_projection import (  # noqa: E402
     ProjectionCode, project_pd_shared_state,
 )
-from snapshot_reference import DeadlineRecord, DeadlineState  # noqa: E402
+from snapshot_reference import (  # noqa: E402
+    DeadlineRecord, DeadlineState, InterruptRecord, MachineState,
+    SnapshotCode, capture as r2_capture, restore as r2_restore,
+)
+
+
+def candidate_state():
+    return AgendaState(
+        heap=((Fraction(9), "pending", 3),),
+        events=(
+            AgendaEvent("done", 2, "cpu", Fraction(8), "write-done", EventStatus.COMPLETED),
+            AgendaEvent("old", 1, "cpu", Fraction(5), "old-write", EventStatus.SUPERSEDED),
+            AgendaEvent("pending", 3, "vdp", Fraction(9), "write-pending", EventStatus.SCHEDULED),
+            AgendaEvent("claimed", 4, "cpu", Fraction(10), "write-claimed", EventStatus.CLAIMED),
+            AgendaEvent("cancelled", 5, "vdp", Fraction(11), "write-cancelled", EventStatus.CANCELLED),
+        ),
+        watermark_common=Fraction(7),
+    )
 
 
 class PdR2SnapshotProjectionTests(unittest.TestCase):
     def test_maps_only_shared_deadline_fields_and_watermark(self):
-        state = AgendaState(
-            heap=((Fraction(9), "pending", 3),),
-            events=(
-                AgendaEvent("done", 2, "cpu", Fraction(8), "write-done", EventStatus.COMPLETED),
-                AgendaEvent("old", 1, "cpu", Fraction(5), "old-write", EventStatus.SUPERSEDED),
-                AgendaEvent("pending", 3, "vdp", Fraction(9), "write-pending", EventStatus.SCHEDULED),
-                AgendaEvent("claimed", 4, "cpu", Fraction(10), "write-claimed", EventStatus.CLAIMED),
-                AgendaEvent("cancelled", 5, "vdp", Fraction(11), "write-cancelled", EventStatus.CANCELLED),
-            ),
-            watermark_common=Fraction(7),
-        )
-        result = project_pd_shared_state(state)
+        result = project_pd_shared_state(candidate_state())
         self.assertEqual(result.code, ProjectionCode.OK)
         projection = result.projection
         self.assertEqual(projection.watermark, Fraction(7))
@@ -45,6 +51,37 @@ class PdR2SnapshotProjectionTests(unittest.TestCase):
         self.assertTrue(any("effect ledgers" in item for item in projection.unrepresented))
         self.assertTrue(any("TransactionBook" in item for item in projection.unrepresented))
         self.assertTrue(any("interrupts" in item for item in projection.unrepresented))
+
+    def test_projected_shared_fields_survive_r2_capture_and_restore(self):
+        projection = project_pd_shared_state(candidate_state()).projection
+        # This R2 fixture is a projection envelope, not a claim that absent
+        # P-D machine fields (domains, transactions, IRQ and replay cursor)
+        # are semantically equivalent to empty R2 fields.
+        r2_state = MachineState(
+            profile="SMS-NTSC",
+            model_version="R1-0.3.18",
+            domains=(),
+            watermark=projection.watermark,
+            deadlines=projection.deadlines,
+            transactions=(),
+            interrupts=InterruptRecord(),
+            input_cursor=0,
+        )
+        captured = r2_capture(r2_state)
+        self.assertEqual(captured.code, SnapshotCode.OK)
+        restored = r2_restore(
+            r2_state, captured.artifact,
+            expected_profile="SMS-NTSC", expected_version="R1-0.3.18",
+        )
+        self.assertEqual(restored.code, SnapshotCode.OK)
+        self.assertEqual(restored.restored_state.watermark, projection.watermark)
+        self.assertEqual(restored.restored_state.deadlines, projection.deadlines)
+        self.assertEqual(
+            tuple((item.identity, item.generation, item.at_common, item.state)
+                  for item in restored.restored_state.deadlines),
+            tuple((item.identity, item.generation, item.at_common, item.state)
+                  for item in projection.deadlines),
+        )
 
     def test_cancel_pending_is_not_guessed_as_cancelled_or_scheduled(self):
         state = AgendaState(
