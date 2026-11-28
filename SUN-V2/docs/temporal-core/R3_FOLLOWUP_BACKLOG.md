@@ -433,3 +433,11 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 - Teste: `test_p_d_w05_arbitration_rejects_orphan_and_owner_mismatched_cancellations`.
 - CI #46184619141 SUCCESS no SHA `b3d48edf2bd5601e5513ef709fb9b79d644d6577`: R2 258/258 Linux e Windows; R3 307/307 Linux e Windows; corpus emitter 202/202 por OS; corpus canônico/replayable byte-identical; mutation checks R2 e Rust quality/unit regression PASS. Jobs de produção/hardware SKIPPED.
 - FUP-01 permanece PARCIAL: ainda faltam decisões/crosswalks para lifecycle `Dispatched`/`Failed`, projeção de `Superseded`, caminho P-D `claim_next()/complete()` sem watermark fechado, e parte da validação estrutural de entradas malformadas.
+
+
+### FUP-01 — validação estrutural de containers e entradas (28/11/2026)
+
+- Foram adicionados diferenciais P-A/P-D para container inválido de participantes esperados, deadline/evento pré-construído malformado e registro de cancelamento pendente malformado. Cada rejeição exige `InvalidInput` e estado sem mutação.
+- Testes: `test_p_d_w05_malformed_expected_participant_container_is_rejected_atomically`, `test_p_d_w05_malformed_deadline_entries_are_rejected_atomically`, `test_p_d_w05_malformed_pending_cancellation_entries_are_rejected_atomically`.
+- CI #46184815771 SUCCESS no SHA `ba611c798755a2bd7c6d02f3d9b31effe47bf50c`: R2 258/258 Linux e Windows; R3 310/310 Linux e Windows; corpus emitter 202/202 por OS; canonical/replayable byte-equivalent; mutation checks R2 e Rust quality/unit regression PASS. Jobs de produção/hardware SKIPPED.
+- FUP-01 permanece PARCIAL: lifecycle `Dispatched`/`Failed`, `Superseded`, claim/complete sem watermark e demais limites de projeção continuam abertos para análise semântica.
