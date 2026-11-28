@@ -222,3 +222,16 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 - Novos testes no HEAD seguinte `f88a5ea7a24a302d15be2124997a362ef7d11789`: restore R2 de artefato forjado contendo INT-ack UNKNOWN rejeita atomicamente e preserva estado ativo; round-trip da projeção P-D→R2 verifica watermark e coordenadas compartilhadas de cada deadline, sem declarar equivalência de ledgers de efeitos.
 - CI #11270 para `f88a5ea7a24a302d15be2124997a362ef7d11789`: em execução no momento deste registro; resultado não antecipado.
 - FUP-04 permanece PARCIAL até concluir a matriz W09 de todos os campos compartilhados com correspondência semântica demonstrável e documentar campos sem contraparte. R2 permanece imutável.
+
+
+
+### Atualização W09 — projeção transacional parcial e CI #11270/#11275 (28/11/2026)
+
+- **CI #11270:** [SUCCESS](https://github.com/leonardo201800478/SUN/actions/runs/46168442378) no SHA `f88a5ea7a24a302d15be2124997a362ef7d11789`. R3 Linux/Windows, R2 independente Linux, R2 Python Windows, equivalência byte a byte dos corpora canônico/replayável e Rust quality/unit regression: SUCCESS.
+- A inspeção dos contratos confirmou correspondência parcial entre o `r3_transaction_core.TransactionBook` (compartilhado por P-D/P-E) e o `R2 TransactionRecord`: identity, generation, state, progress_common, ready_marker→next_marker, wait_source, sampled e failure→error.
+- Adicionado em PR #1294 o adaptador `transaction_snapshot_projection.py` e sua matriz de testes: todos os sete estados de ciclo de vida, round-trip pelo capture/restore R2, origem P-D e P-E e rejeição de TransactionBook inválido.
+- Não são projetados: descritores de operação/origem/destino/payload, duração-base, budgets de automatic/external TW, schedule de markers, base_consumed, ledgers de TW, IDs de commit marker como se fossem device effect IDs, nem committed/pending effect ledgers R2. Nenhuma equivalência de IRQ/ack, domínios ou replay é inferida.
+- **CI #11274:** FAIL no SHA intermediário `bbdbecb46737145c7bfc8d2be68d054413382782`, por uma asserção de teste que procurava um fragmento textual diferente do nome efetivo do campo não representado. O adaptador e os testes funcionais de projeção/round-trip passaram; a asserção de cobertura textual foi corrigida no commit seguinte. A falha não foi ocultada nem contada como PASS.
+- **CI #11275:** [SUCCESS](https://github.com/leonardo201800478/SUN/actions/runs/46169029106) no SHA exato `7a2ac8c409a711d226c0da793b77d255ddad1a80`. R3 descartável: 291 testes Linux e 291 Windows; R2 independente Linux: 256 testes; R2 Python Windows: 256 testes; corpora canônico e replayável byte-identical Linux/Windows; supervisor Rust quality/unit regression: SUCCESS.
+- Jobs de produção SMS/Z80/VDP/PSG/YM2413/CPAL/SDL3/Slint/WGPU/scheduler permaneceram SKIPPED; este CI não valida esses subsistemas.
+- **FUP-04 permanece PARCIAL.** A matriz agora cobre a projeção de deadlines P-D e a projeção parcial de transações compartilhadas P-D/P-E. Permanecem não comparáveis o log de inputs aceitos R2 versus o sufixo de operações dos candidatos, os estados P-E de sincronização versus MachineState, IRQ/ack e ledgers de efeitos sem contraparte. Próxima etapa: fechar a matriz de fronteiras de replay/atomicidade sem fabricar equivalência; depois consolidar FUP-01..04 para revisão adversarial R4.
