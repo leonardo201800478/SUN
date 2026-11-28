@@ -184,6 +184,32 @@ class SyncOnDemandTests(unittest.TestCase):
         self.assertEqual(result.code, SyncCode.REACHED)
         self.assertEqual(result.state.domains[0].progress, Fraction(1, 3))
 
+    def test_regressing_safe_horizon_is_rejected_without_mutation(self):
+        state = SyncState(
+            domains=(
+                SyncDomain("cpu", Fraction(5), Fraction(10)),
+                SyncDomain("vdp", Fraction(0), Fraction(3)),
+            ),
+            transitions=(),
+        )
+        result = synchronize(
+            state, requested_domains=("cpu", "vdp"), target_common=Fraction(8)
+        )
+        self.assertEqual(result.code, SyncCode.INVALID_INPUT)
+        self.assertIs(result.state, state)
+
+    def test_unknown_observed_identity_is_rejected_without_exception(self):
+        state = SyncState(
+            domains=(SyncDomain("cpu", Fraction(0), Fraction(10)),),
+            transitions=(SyncTransition("known", "cpu", Fraction(2)),),
+            observed=("unknown",),
+        )
+        result = synchronize(
+            state, requested_domains=("cpu",), target_common=Fraction(5)
+        )
+        self.assertEqual(result.code, SyncCode.INVALID_INPUT)
+        self.assertIs(result.state, state)
+
     def test_float_target_is_rejected(self):
         state = SyncState(
             domains=(SyncDomain("cpu", Fraction(0), Fraction(2)),),
