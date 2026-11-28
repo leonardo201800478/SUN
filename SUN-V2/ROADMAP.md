@@ -6,7 +6,7 @@
 
 **Estratégia:** componentes mínimos com contratos sólidos; integração vertical de produção somente após R5
 
-**Status:** R0 APROVADO; R1 APROVADO em 24/11/2026 (v0.3.18, PR #1281); R2 APROVADO E MERGED em 25/11/2026 (256/256 Linux/Windows, mutation PASS, CI #10798, merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`); R3 EM ANDAMENTO — P-A W00–W09 corrigido experimentalmente e validado em CI #10937 (125/125 testes Linux/Windows, 351 pontos por OS); corpus canônico igual entre plataformas (112 fixtures, 1.475 cortes, digest `fefc49aaf5a61f655991214008dbc84073ac4c8709cf4ac1db573bdcf95909bc`). Os findings W06/W07 revelaram lacunas específicas do oráculo R2, documentadas em `docs/temporal-core/R2_R3_ORACLE_GAP_PROPOSAL.md`; revisão adversarial independente e decisão formal sobre a proposta permanecem pendentes. PR #1284 permanece Draft; P-D/P-E não iniciados. R4/R5 PENDENTES; nenhuma implementação de produção iniciada
+**Status:** R0 APROVADO; R1 APROVADO em 24/11/2026 (v0.3.18, PR #1281); R2 APROVADO E MERGED em 25/11/2026 (256/256 Linux/Windows, mutation PASS, CI #10798, merge SHA `18b4352e16cf6ab275c4923a30acc3124754a1b0`); R3 EM ANDAMENTO — CI #11116 no HEAD `3955ddd9ed15d35dbd5bc4c6fabec7c1da0fa667`: 206/206 testes R3 e 256/256 R2 por OS; 351 pontos por OS; corpus canônico 119/1.483 (digest `ab5e146eda37e8292159cc5440beca615c5b511383e3807b24adbacbb490056b`) e replayável 25/134 (digest `6189653bb3aa18fc5805f7dd1ae9708ea31b349d03da7ea9fcc906350cbcfbb6`), equivalência byte a byte Linux/Windows. W06 físico UNKNOWN; W07 relação B/C UNKNOWN, com divergência P-A/R2 preservada. PR #1284 aberta/pronta para revisão, sem review formal; 14 jobs SKIPPED. P-A não fechado; P-D/P-E NOT RUN; R4/R5 pendentes; produção bloqueada até R5.
 
 **Branch de trabalho:** `architecture/sun-v2-foundation`
 
@@ -109,7 +109,7 @@ Entregas:
 
 ### Fase 3 — protótipos temporais descartáveis (R3)
 
-**Status:** EM ANDAMENTO. P-A W00–W09 corrigido experimentalmente e validado em CI #10937 (125/125 testes Linux/Windows, 351 pontos por OS); corpus canônico igual entre plataformas (112 fixtures, 1.475 cortes, digest `fefc49aaf5a61f655991214008dbc84073ac4c8709cf4ac1db573bdcf95909bc`). Os findings W06/W07 revelaram lacunas específicas do oráculo R2, documentadas em `docs/temporal-core/R2_R3_ORACLE_GAP_PROPOSAL.md`; revisão adversarial independente e decisão formal sobre a proposta permanecem pendentes. PR #1284 permanece Draft; P-D/P-E não iniciados. CI #10937 validou também Actionlint, higiene documental e quality supervisor. A interpretação operacional W07 e o limite de validação externa do descritor W06 permanecem sujeitos à revisão independente; R2 não foi alterado. P-D/P-E não iniciados. Nenhum código de produção autorizado antes de R5.
+**Status:** R3 EM ANDAMENTO — CI #11116 no HEAD `3955ddd9ed15d35dbd5bc4c6fabec7c1da0fa667`: 206/206 testes R3 e 256/256 R2 por OS; 351 pontos por OS; corpus canônico 119/1.483 (digest `ab5e146eda37e8292159cc5440beca615c5b511383e3807b24adbacbb490056b`) e replayável 25/134 (digest `6189653bb3aa18fc5805f7dd1ae9708ea31b349d03da7ea9fcc906350cbcfbb6`), equivalência byte a byte Linux/Windows. W06 físico UNKNOWN; W07 relação B/C UNKNOWN, com divergência P-A/R2 preservada. PR #1284 aberta/pronta para revisão, sem review formal; 14 jobs SKIPPED. P-A não fechado; P-D/P-E NOT RUN; R4/R5 pendentes; produção bloqueada até R5.
 
 Entregas:
 - comparar P-A, P-D e P-E sob semântica, cenários e cargas equivalentes;
@@ -288,4 +288,4 @@ Estado atual:
 - A V1 oferece componentes e auditorias como fonte de conhecimento, mas não será dependência do V2.
 - R0 aprovado no escopo documental; nenhuma implementação de produção autorizada.
 
-**Próxima ação:** concluir a revisão independente dos findings W06/W07 e a decisão formal sobre a proposta de lacuna do oráculo R2, mantendo PR #1284 em Draft. Após fechamento documentado de P-A, avançar para R4 (revisão adversarial) e depois R5 (aprovação arquitetural). P-D/P-E e produção permanecem bloqueados; nenhum código de produção antes de R5. Não retomar S0 nem criar benchmark substituto.
+**Próxima ação:** concluir a disposição formal dos gaps do oráculo R2 em W06/W07 e a revisão técnica da PR #1284. Manter UNKNOWN onde não houver evidência física; não fabricar fase ou precedência. P-A só poderá fechar com corpus, exceções e critérios de equivalência formalmente aceitos. P-D/P-E permanecem bloqueados até esse closeout; depois avançar para R4 e R5. Nenhum código de produção antes de R5.
