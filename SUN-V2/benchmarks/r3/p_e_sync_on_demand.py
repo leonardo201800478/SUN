@@ -112,6 +112,11 @@ class SyncState:
                 and isinstance(item.second_id, str)
             }
             object.__setattr__(self, "_relation_index", MappingProxyType(relations))
+        # The state is immutable after construction. Validate once here so
+        # repeated sync cuts can reuse the immutable indexes without rescanning
+        # the entire state on every observation.
+        if not self._validated and _validate(self) is None:
+            object.__setattr__(self, "_validated", True)
 
 
 @dataclass(frozen=True)
