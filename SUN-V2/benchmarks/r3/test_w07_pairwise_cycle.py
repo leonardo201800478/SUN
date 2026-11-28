@@ -309,6 +309,46 @@ class W07PairwiseCycleTests(unittest.TestCase):
         self.assertEqual(result.code, StepCode.RESOURCE_EXHAUSTED)
         self.assertIs(result.state, state)
 
+    def test_transition_preserves_non_default_microstep_limit_and_enforces_it_later(self):
+        state = PairwiseCycle(
+            10,
+            (Obligation("a", "cpu", 0), Obligation("b", "vdp", 0)),
+            (PairConstraint("a", "b", PairRelation.COMMUTATIVE),),
+            future=(Obligation("c", "psg", 1), Obligation("d", "ym2413", 2)),
+            max_microsteps=2,
+        )
+        advanced = process(state, "a", emitted=(Obligation("c", "psg", 1),))
+        self.assertEqual(advanced.code, StepCode.ADVANCED)
+        self.assertEqual(advanced.state.max_microsteps, 2)
+        self.assertEqual(advanced.state.future, (Obligation("d", "ym2413", 2),))
+
+        # The next valid transition reaches the configured boundary, not default 32.
+        boundary_state = PairwiseCycle(
+            10,
+            (Obligation("b", "vdp", 0),),
+            (),
+            future=(Obligation("d", "ym2413", 2),),
+            max_microsteps=2,
+        )
+        boundary = process(
+            boundary_state, "b", emitted=(Obligation("d", "ym2413", 2),)
+        )
+        self.assertEqual(boundary.code, StepCode.ADVANCED)
+        self.assertEqual(boundary.state.max_microsteps, 2)
+
+        over_limit = PairwiseCycle(
+            10,
+            (Obligation("b", "vdp", 0),),
+            (),
+            future=(Obligation("e", "ym2413", 3),),
+            max_microsteps=2,
+        )
+        exhausted = process(
+            over_limit, "b", emitted=(Obligation("e", "ym2413", 3),)
+        )
+        self.assertEqual(exhausted.code, StepCode.RESOURCE_EXHAUSTED)
+        self.assertIs(exhausted.state, over_limit)
+
     def test_invalid_finite_microstep_limits_are_rejected_without_mutation(self):
         valid = self.initial()
         for limit in (0, -1, True):
