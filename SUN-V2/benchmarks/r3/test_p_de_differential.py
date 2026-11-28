@@ -988,12 +988,18 @@ class CandidateDifferentialTests(unittest.TestCase):
         pa_live_closed = p_a_close_watermark(pa_live.book, Fraction(10))
         pd_live_closed = p_d_close_watermark(pd_live.state, Fraction(10), pd_context)
         self.assertEqual(_p_a_w05_state(pa_live_closed.book), _p_d_w05_state(pd_live_closed.state))
+        pa_closed_context = replace(
+            pa_context, watermark_common=Fraction(10)
+        )
+        pd_closed_context = replace(
+            pd_context, watermark_common=Fraction(10)
+        )
         pa_late = p_a_cancel_deadline(
-            pa_live_closed.book, pa_context, owner="cpu", identity="w05-cancel-late",
+            pa_live_closed.book, pa_closed_context, owner="cpu", identity="w05-cancel-late",
             generation=0, at_common=Fraction(11),
         )
         pd_late = p_d_request_cancel(
-            pd_live_closed.state, pd_context, owner="cpu", identity="w05-cancel-late",
+            pd_live_closed.state, pd_closed_context, owner="cpu", identity="w05-cancel-late",
             generation=0, at_common=Fraction(11),
         )
         self.assertEqual(pa_late.code.value, "LateInput")
