@@ -505,7 +505,7 @@ def publish(
     updated = AgendaState(
         tuple(heap), tuple(events), state.constraints, state.max_events,
         state.watermark_common, state.pending_cancellations,
-        state.max_microsteps,
+        state.max_microsteps, state.transactions,
     )
     return AgendaResult(updated, AgendaCode.ACCEPTED, event)
 
@@ -661,6 +661,7 @@ def request_cancel(
     updated = AgendaState(
         heap, events, state.constraints, state.max_events,
         state.watermark_common, pending, state.max_microsteps,
+        state.transactions,
     )
     return AgendaResult(updated, AgendaCode.ACCEPTED, updated_event)
 
@@ -945,6 +946,7 @@ def close_watermark(
     updated = AgendaState(
         tuple(heap), events, state.constraints, state.max_events, target,
         state.pending_cancellations, state.max_microsteps,
+        state.transactions,
     )
     return AgendaResult(
         updated, AgendaCode.ACCEPTED,
