@@ -361,18 +361,24 @@ def cancel(state: AgendaState, identity: str, generation: int) -> AgendaResult:
     return AgendaResult(updated, AgendaCode.CANCELLED, updated_event)
 
 
-def _select_same_instant(state: AgendaState, group: tuple[AgendaEvent, ...]) -> AgendaEvent | None:
-    """Choose a causally minimal member; unresolved or cyclic ties stay UNKNOWN."""
-    if len(group) == 1:
-        return group[0]
-    incoming = {item.identity: 0 for item in group}
-    edges: dict[str, set[str]] = {item.identity: set() for item in group}
-    ids = [item.identity for item in group]
-    events_by_id = {item.identity: item for item in group}
-    relation_index = {
-        frozenset((item.first_id, item.second_id)): item
-        for item in state.constraints
-    }
+def _ordered_same_instant(
+    state: AgendaState,
+    group: tuple[AgendaEvent, ...],
+    relation_index: dict[frozenset[str], AgendaConstraint] | None = None,
+) -> tuple[AgendaEvent, ...] | None:
+    """Topologically order one timestamp group using explicit pair relations."""
+    if len(group) <= 1:
+        return group
+    if relation_index is None:
+        relation_index = {
+            frozenset((item.first_id, item.second_id)): item
+            for item in state.constraints
+        }
+    by_id = {item.identity: item for item in group}
+    ids = tuple(by_id)
+    incoming = {identity: 0 for identity in ids}
+    edges: dict[str, set[str]] = {identity: set() for identity in ids}
+    pair_relations: dict[frozenset[str], PairRelation] = {}
 
     def declared_relation(first_id: str, second_id: str) -> PairRelation:
         item = relation_index.get(frozenset((first_id, second_id)))
@@ -386,37 +392,58 @@ def _select_same_instant(state: AgendaState, group: tuple[AgendaEvent, ...]) -> 
             return PairRelation.FIRST_BEFORE_SECOND
         return item.relation
 
-    for index, first in enumerate(ids):
-        for second in ids[index + 1:]:
-            relation = declared_relation(first, second)
+    for index, first_id in enumerate(ids):
+        for second_id in ids[index + 1:]:
+            first = by_id[first_id]
+            second = by_id[second_id]
+            relation = declared_relation(first_id, second_id)
             if relation is PairRelation.UNKNOWN:
-                relation = _phase_relation(events_by_id[first], events_by_id[second])
+                relation = _phase_relation(first, second)
             if relation is PairRelation.UNKNOWN:
                 return None
             if (
                 relation is PairRelation.FIRST_BEFORE_SECOND
-                and events_by_id[first].microstep > events_by_id[second].microstep
+                and first.microstep > second.microstep
             ) or (
                 relation is PairRelation.SECOND_BEFORE_FIRST
-                and events_by_id[second].microstep > events_by_id[first].microstep
+                and second.microstep > first.microstep
             ):
                 return None
+            pair_relations[frozenset((first_id, second_id))] = relation
             if relation is PairRelation.FIRST_BEFORE_SECOND:
-                edges[first].add(second)
-                incoming[second] += 1
+                edges[first_id].add(second_id)
+                incoming[second_id] += 1
             elif relation is PairRelation.SECOND_BEFORE_FIRST:
-                edges[second].add(first)
-                incoming[first] += 1
-    ready = sorted(identity for identity, count in incoming.items() if count == 0)
-    if not ready:
-        return None
-    if len(ready) > 1:
-        for index, first in enumerate(ready):
-            for second in ready[index + 1:]:
-                if declared_relation(first, second) is not PairRelation.COMMUTATIVE:
-                    return None
-    return next(item for item in group if item.identity == ready[0])
+                edges[second_id].add(first_id)
+                incoming[first_id] += 1
 
+    ready = sorted(identity for identity, count in incoming.items() if count == 0)
+    ordered: list[AgendaEvent] = []
+    while ready:
+        if len(ready) > 1:
+            for index, first_id in enumerate(ready):
+                for second_id in ready[index + 1:]:
+                    if pair_relations.get(
+                        frozenset((first_id, second_id))
+                    ) is not PairRelation.COMMUTATIVE:
+                        return None
+        selected = ready.pop(0)
+        ordered.append(by_id[selected])
+        for successor in sorted(edges[selected]):
+            incoming[successor] -= 1
+            if incoming[successor] == 0:
+                ready.append(successor)
+        ready.sort()
+
+    if len(ordered) != len(group):
+        return None
+    return tuple(ordered)
+
+
+def _select_same_instant(state: AgendaState, group: tuple[AgendaEvent, ...]) -> AgendaEvent | None:
+    """Choose the first causally ordered member; unresolved/cyclic ties stay UNKNOWN."""
+    ordered = _ordered_same_instant(state, group)
+    return ordered[0] if ordered else None
 
 def claim_next(state: AgendaState, target_common: int | Fraction) -> AgendaResult:
     """Claim the earliest due event without imposing insertion-order precedence."""
@@ -485,6 +512,10 @@ def close_watermark(state: AgendaState, target_common: int | Fraction) -> Agenda
     }
     claimed_events: dict[tuple[str, int], AgendaEvent] = {}
     claimed_order: list[tuple[str, int]] = []
+    relation_index = {
+        frozenset((item.first_id, item.second_id)): item
+        for item in state.constraints
+    }
     while heap and heap[0][0] <= target:
         earliest = heap[0][0]
         keys = []
@@ -496,14 +527,13 @@ def close_watermark(state: AgendaState, target_common: int | Fraction) -> Agenda
         )
         if any(item is None for item in group):
             return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="heap references a missing event")
-        remaining = list(group)
-        while remaining:
-            selected = _select_same_instant(state, tuple(remaining))
-            if selected is None:
-                return AgendaResult(
-                    state, AgendaCode.INDETERMINATE,
-                    detail="same-instant event relation is UNKNOWN or cyclic",
-                )
+        ordered = _ordered_same_instant(state, group, relation_index)
+        if ordered is None:
+            return AgendaResult(
+                state, AgendaCode.INDETERMINATE,
+                detail="same-instant event relation is UNKNOWN or cyclic",
+            )
+        for selected in ordered:
             claimed = AgendaEvent(
                 selected.identity, selected.generation, selected.owner,
                 selected.at_common, selected.effect_id, EventStatus.CLAIMED,
@@ -513,7 +543,6 @@ def close_watermark(state: AgendaState, target_common: int | Fraction) -> Agenda
             key = (selected.identity, selected.generation)
             claimed_events[key] = claimed
             claimed_order.append(key)
-            remaining.remove(selected)
 
     events = tuple(
         claimed_events.get((item.identity, item.generation), item)
