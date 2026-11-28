@@ -88,6 +88,9 @@ class SyncState:
     _relation_index: Mapping[frozenset[str], SyncConstraint] = field(
         default_factory=lambda: MappingProxyType({}), repr=False, compare=False
     )
+    _commutative_groups: Mapping[frozenset[str], tuple[SyncTransition, ...]] = field(
+        default_factory=lambda: MappingProxyType({}), repr=False, compare=False
+    )
     _validated: bool = field(default=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -127,6 +130,35 @@ class SyncState:
                 and isinstance(item.second_id, str)
             }
             object.__setattr__(self, "_relation_index", MappingProxyType(relations))
+        if not self._commutative_groups and self.transitions:
+            by_time: dict[Fraction, list[SyncTransition]] = {}
+            for item in self.transitions:
+                if isinstance(item, SyncTransition):
+                    by_time.setdefault(item.at_common, []).append(item)
+            cached_groups = {}
+            for group in by_time.values():
+                if len(group) < 2:
+                    continue
+                valid = True
+                for index, first in enumerate(group):
+                    for second in group[index + 1:]:
+                        if _dependency_order(first, second) is not PairRelation.UNKNOWN:
+                            valid = False
+                            break
+                        relation = self._relation_index.get(
+                            frozenset((first.identity, second.identity))
+                        )
+                        if relation is None or relation.relation is not PairRelation.COMMUTATIVE:
+                            valid = False
+                            break
+                    if not valid:
+                        break
+                if valid:
+                    key = frozenset(item.identity for item in group)
+                    cached_groups[key] = tuple(sorted(group, key=lambda item: item.identity))
+            object.__setattr__(
+                self, "_commutative_groups", MappingProxyType(cached_groups)
+            )
         # The state is immutable after construction. Validate once here so
         # repeated sync cuts can reuse the immutable indexes without rescanning
         # the entire state on every observation.
@@ -337,6 +369,11 @@ def _choose(
     """Choose a minimal same-instant transition using one indexed relation view."""
     if len(group) == 1:
         return group[0]
+    cached_commutative = state._commutative_groups.get(
+        frozenset(item.identity for item in group)
+    )
+    if cached_commutative is not None:
+        return cached_commutative
     incoming = {item.identity: 0 for item in group}
     by_id = {item.identity: item for item in group}
     relation_index = state._relation_index
@@ -473,6 +510,7 @@ def synchronize(
         state._transitions_by_owner,
         state._transition_times_by_owner,
         state._relation_index,
+        state._commutative_groups,
         True,
     )
     code = SyncCode.REACHED if frontier == target else SyncCode.STOPPED_AT
