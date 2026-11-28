@@ -13,7 +13,8 @@ from p_d_discrete_agenda import (
     request_cancel as pd_request_cancel,
 )
 from p_e_sync_on_demand import (
-    SyncCode, SyncDomain, SyncState, SyncTransition, synchronize,
+    PairRelation as SyncPairRelation, SyncCode, SyncConstraint, SyncDomain,
+    SyncState, SyncTransition, synchronize,
 )
 from r3_candidate_snapshots import (
     SnapshotCode,
@@ -24,24 +25,90 @@ from r3_candidate_snapshots import (
 )
 from r3_transaction_core import (
     MarkerKind, TransactionBook, TxMarker, TxSpec,
-    reach_next_marker, sample_marker, start, submit,
+    cancel, complete, consume_base_time, consume_tw, enter_waiting, fail,
+    reach_next_marker, recover, sample_marker, start, submit,
 )
 
 
 def partial_transaction_book():
+    def accepted(result):
+        if result.code.value != "Ok":
+            raise AssertionError(result.detail or result.code.value)
+        return result.book
+
+    markers = (
+        TxMarker("sample-status", MarkerKind.SAMPLE, Fraction(1)),
+        TxMarker("commit-write", MarkerKind.COMMIT, Fraction(2), True),
+    )
     spec = TxSpec(
         "tx-snapshot", 3, "cpu", "vdp", "read", "SMS-NTSC", "payload",
-        Fraction(0), Fraction(0), Fraction(2), 1, 1,
+        Fraction(0), Fraction(0), Fraction(2), 1, 1, markers,
+    )
+    book = accepted(submit(TransactionBook(), spec))
+    book = accepted(start(book, "tx-snapshot"))
+    book = accepted(reach_next_marker(book, "tx-snapshot", Fraction(1)))
+    book = accepted(sample_marker(book, "tx-snapshot", "sample-status", "0x5A"))
+    book = accepted(consume_base_time(book, "tx-snapshot", Fraction(1)))
+    book = accepted(consume_tw(book, "tx-snapshot", automatic=True))
+    book = accepted(consume_tw(book, "tx-snapshot", automatic=False))
+
+    waiting = TxSpec(
+        "tx-waiting", 0, "cpu", "vdp", "read", "SMS-NTSC", "",
+        Fraction(0), Fraction(0), Fraction(0), 0, 0, (),
+    )
+    book = accepted(submit(book, waiting))
+    book = accepted(start(book, "tx-waiting"))
+    book = accepted(enter_waiting(book, "tx-waiting", "dependency"))
+
+    failed = TxSpec(
+        "tx-failed", 1, "cpu", "vdp", "write", "SMS-NTSC", "partial",
+        Fraction(0), Fraction(0), Fraction(2), 0, 0, markers,
+    )
+    book = accepted(submit(book, failed))
+    book = accepted(start(book, "tx-failed"))
+    book = accepted(reach_next_marker(book, "tx-failed", Fraction(1)))
+    book = accepted(sample_marker(book, "tx-failed", "sample-status", "0xA5"))
+    book = accepted(reach_next_marker(book, "tx-failed", Fraction(2)))
+    book = accepted(complete_commit_marker(book, "tx-failed"))
+    book = accepted(fail(book, "tx-failed", "device failure after partial commit"))
+
+    recovered = TxSpec(
+        "tx-recovered", 0, "cpu", "vdp", "read", "SMS-NTSC", "",
+        Fraction(0), Fraction(0), Fraction(0), 0, 0, (),
+    )
+    book = accepted(submit(book, recovered))
+    book = accepted(start(book, "tx-recovered"))
+    book = accepted(fail(book, "tx-recovered", "transient transport failure"))
+    book = accepted(recover(book, "tx-recovered"))
+
+    cancelled = TxSpec(
+        "tx-cancelled", 0, "cpu", "vdp", "read", "SMS-NTSC", "",
+        Fraction(0), Fraction(0), Fraction(0), 0, 0, (),
+    )
+    book = accepted(submit(book, cancelled))
+    book = accepted(cancel(book, "tx-cancelled"))
+
+    finished = TxSpec(
+        "tx-completed", 0, "cpu", "vdp", "write", "SMS-NTSC", "",
+        Fraction(0), Fraction(0), Fraction(0), 0, 0,
         (
-            TxMarker("sample-status", MarkerKind.SAMPLE, Fraction(1)),
-            TxMarker("commit-write", MarkerKind.COMMIT, Fraction(2), True),
+            TxMarker("sample-zero", MarkerKind.SAMPLE, Fraction(0)),
+            TxMarker("commit-zero", MarkerKind.COMMIT, Fraction(0), True),
         ),
     )
-    book = submit(TransactionBook(), spec).book
-    book = start(book, "tx-snapshot").book
-    book = reach_next_marker(book, "tx-snapshot", Fraction(1)).book
-    book = sample_marker(book, "tx-snapshot", "sample-status", "0x5A").book
+    book = accepted(submit(book, finished))
+    book = accepted(start(book, "tx-completed"))
+    book = accepted(reach_next_marker(book, "tx-completed", Fraction(0)))
+    book = accepted(sample_marker(book, "tx-completed", "sample-zero", "zero"))
+    book = accepted(reach_next_marker(book, "tx-completed", Fraction(0)))
+    book = accepted(commit_effect(book, "tx-completed", "commit-zero"))
+    book = accepted(complete(book, "tx-completed"))
     return book
+
+
+def complete_commit_marker(book, identity):
+    from r3_transaction_core import commit_effect
+    return commit_effect(book, identity, "commit-write")
 
 
 def pending_pd_state():
@@ -60,6 +127,10 @@ def pending_pd_state():
     state = pd_request_cancel(
         state, context, owner="cpu", identity="deadline-snapshot",
         generation=2, at_common=Fraction(8),
+    ).state
+    state = pd_publish_with_context(
+        state, context, owner="vdp", identity="future-deadline",
+        generation=0, at_common=Fraction(12), effect_id="future-effect",
     ).state
     state = pd_close_watermark(state, Fraction(9), context).state
     return replace(state, transactions=partial_transaction_book())
@@ -80,11 +151,27 @@ class CandidateSnapshotTests(unittest.TestCase):
         )
         self.assertEqual(restored.code, SnapshotCode.OK)
         self.assertEqual(restored.restored_state, state)
+        self.assertTrue(state.heap)
         self.assertEqual(restored.restored_state.heap, state.heap)
+        self.assertIn((Fraction(12), "future-deadline", 0), restored.restored_state.heap)
         self.assertEqual(restored.restored_state.pending_cancellations, state.pending_cancellations)
         self.assertEqual(restored.restored_state.transactions, state.transactions)
-        self.assertEqual(restored.restored_state.transactions.transactions[0].sampled,
+        transactions = {
+            item.spec.identity: item for item in restored.restored_state.transactions.transactions
+        }
+        self.assertEqual(transactions["tx-snapshot"].sampled,
                          (("sample-status", "0x5A"),))
+        self.assertEqual(transactions["tx-snapshot"].base_consumed, Fraction(1))
+        self.assertEqual(transactions["tx-snapshot"].automatic_tw_consumed, 1)
+        self.assertEqual(transactions["tx-snapshot"].external_tw_consumed, 1)
+        self.assertEqual(transactions["tx-waiting"].wait_source, "dependency")
+        self.assertEqual(transactions["tx-waiting"].state.value, "Waiting")
+        self.assertEqual(transactions["tx-failed"].committed, ("commit-write",))
+        self.assertEqual(transactions["tx-failed"].failure, "device failure after partial commit")
+        self.assertEqual(transactions["tx-recovered"].recoveries, 1)
+        self.assertEqual(transactions["tx-recovered"].failure, "transient transport failure")
+        self.assertEqual(transactions["tx-cancelled"].state.value, "Cancelled")
+        self.assertEqual(transactions["tx-completed"].state.value, "Completed")
 
     def test_p_d_snapshot_replay_arbitrates_then_closes_deterministically(self):
         state = pending_pd_state()
@@ -134,10 +221,16 @@ class CandidateSnapshotTests(unittest.TestCase):
             domains=(
                 SyncDomain("cpu", Fraction(0), Fraction(10)),
                 SyncDomain("vdp", Fraction(0), Fraction(10)),
+                SyncDomain("psg", Fraction(0), Fraction(10)),
             ),
             transitions=(
                 SyncTransition("cpu-write", "cpu", Fraction(2)),
                 SyncTransition("vdp-read", "vdp", Fraction(4), ("cpu-write",)),
+                SyncTransition("psg-a", "psg", Fraction(3)),
+                SyncTransition("psg-b", "psg", Fraction(3)),
+            ),
+            constraints=(
+                SyncConstraint("psg-a", "psg-b", SyncPairRelation.COMMUTATIVE),
             ),
             transactions=partial_transaction_book(),
         )
@@ -162,6 +255,9 @@ class CandidateSnapshotTests(unittest.TestCase):
         self.assertEqual(restored.restored_state, state)
         self.assertTrue(restored.restored_state._validated)
         self.assertIn("vdp-read", restored.restored_state._transition_by_id)
+        group_key = frozenset(("psg-a", "psg-b"))
+        self.assertIn(group_key, restored.restored_state._commutative_groups)
+        self.assertEqual(restored.restored_state.constraints, state.constraints)
         self.assertEqual(restored.restored_state.transactions, state.transactions)
 
         def apply(current, operation, arguments):
