@@ -168,9 +168,11 @@ def _validate_book(book: object) -> str | None:
         ):
             return "invalid TW or recovery ledger"
         marker_by_id = {item.identity: item for item in tx.spec.markers}
+        if type(tx.sampled) is not tuple:
+            return "invalid sample ledger"
         sampled_ids = [item[0] for item in tx.sampled if type(item) is tuple and len(item) == 2]
         if (
-            type(tx.sampled) is not tuple
+            
             or len(sampled_ids) != len(tx.sampled)
             or len(set(sampled_ids)) != len(sampled_ids)
             or any(
