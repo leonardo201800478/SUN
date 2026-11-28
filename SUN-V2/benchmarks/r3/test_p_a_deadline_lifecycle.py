@@ -863,9 +863,14 @@ class PADeadlineLifecycleTests(unittest.TestCase):
             owner="cpu", identity="invalid-clock", generation=0,
             at_common=Fraction(10), effect_id="effect",
         )
+        invalid_participant = object.__new__(AParticipant)
+        object.__setattr__(invalid_participant, "name", "cpu")
+        object.__setattr__(invalid_participant, "progress", Fraction(0))
+        object.__setattr__(invalid_participant, "safe_horizon", Fraction(100))
+        object.__setattr__(invalid_participant, "units_per_common", Fraction(0))
+        object.__setattr__(invalid_participant, "common_offset", Fraction(0))
         invalid_context = ADeadlineContext(
-            (AParticipant("cpu", Fraction(0), Fraction(100), Fraction(0)),),
-            frozenset({"cpu"}),
+            (invalid_participant,), frozenset({"cpu"}),
         )
         actual = cancel_deadline(
             first.book, invalid_context, owner="cpu",
