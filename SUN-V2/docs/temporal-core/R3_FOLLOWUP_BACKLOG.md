@@ -1,8 +1,8 @@
 # CHRONOS R3 — Backlog de fechamento pós-PR #1284
 
-**Baseline integrada:** PR #1284, squash merge `98cd9e258ae463e32397a119d4d4e6a007346c22`  
-**HEAD validado da baseline:** `1ffa7c74f5d9116c58a8889694989c8e00dec993`  
-**CI baseline:** [#11226 — SUCCESS](https://github.com/leonardo201800478/SUN/actions/runs/46157842567)  
+**Baseline integrada:** PR #1284, squash merge `98cd9e258ae463e32397a119d4d4e6a007346c22`
+**HEAD validado da baseline:** `1ffa7c74f5d9116c58a8889694989c8e00dec993`
+**CI baseline:** [#11226 — SUCCESS](https://github.com/leonardo201800478/SUN/actions/runs/46157842567)
 **Estado:** R3 IN PROGRESS. Este backlog não aprova R3, R4 ou R5 e não autoriza código de produção CHRONOS/V2 antes de R5.
 
 ## Objetivo da continuação
