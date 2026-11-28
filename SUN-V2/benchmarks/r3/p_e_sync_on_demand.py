@@ -506,9 +506,13 @@ def synchronize(
         key=lambda item: (item.at_common, item.identity),
     )
     observed = list(state.observed)
-    while pending:
-        earliest = min(item.at_common for item in pending)
-        group = tuple(item for item in pending if item.at_common == earliest)
+    cursor = 0
+    while cursor < len(pending):
+        earliest = pending[cursor].at_common
+        end = cursor + 1
+        while end < len(pending) and pending[end].at_common == earliest:
+            end += 1
+        group = tuple(pending[cursor:end])
         ordered_group = _choose(state, group)
         if ordered_group is None:
             return SyncResult(
@@ -520,7 +524,7 @@ def synchronize(
                     state, SyncCode.BLOCKED, detail="causal predecessor has not been observed"
                 )
             observed.append(selected.identity)
-            pending.remove(selected)
+        cursor = end
     updated_domains = tuple(
         SyncDomain(
             item.identity,
