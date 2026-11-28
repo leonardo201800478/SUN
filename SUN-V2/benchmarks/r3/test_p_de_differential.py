@@ -853,6 +853,50 @@ class CandidateDifferentialTests(unittest.TestCase):
         self.assertEqual(_p_a_w05_state(pa.book), _p_d_w05_state(pd.state))
 
 
+    def test_p_d_w05_publish_rejects_successor_while_prior_generation_is_scheduled(self):
+        names = frozenset(("cpu", "vdp"))
+        pa_context = ADeadlineContext(
+            (
+                AParticipant("cpu", Fraction(0), Fraction(100), Fraction(1), Fraction(0)),
+                AParticipant("vdp", Fraction(0), Fraction(100), Fraction(1), Fraction(0)),
+            ),
+            names,
+        )
+        pd_context = AgendaContext(
+            (
+                AgendaParticipant("cpu", Fraction(0), Fraction(100)),
+                AgendaParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        identity = "w05-publish-scheduled-predecessor"
+        pa_first = p_a_publish_deadline(
+            ADeadlineBook(), pa_context, owner="cpu", identity=identity,
+            generation=0, at_common=Fraction(10), effect_id="old-effect",
+        )
+        pd_first = p_d_publish_with_context(
+            AgendaState(), pd_context, owner="cpu", identity=identity,
+            generation=0, at_common=Fraction(10), effect_id="old-effect",
+        )
+        self.assertEqual(pa_first.code.value, "Accepted")
+        self.assertEqual(pd_first.code.value, pa_first.code.value)
+        self.assertEqual(_p_a_w05_state(pa_first.book), _p_d_w05_state(pd_first.state))
+
+        pa_rejected = p_a_publish_deadline(
+            pa_first.book, pa_context, owner="cpu", identity=identity,
+            generation=1, at_common=Fraction(20), effect_id="new-effect",
+        )
+        pd_rejected = p_d_publish_with_context(
+            pd_first.state, pd_context, owner="cpu", identity=identity,
+            generation=1, at_common=Fraction(20), effect_id="new-effect",
+        )
+        self.assertEqual(pa_rejected.code.value, "InvalidInput")
+        self.assertEqual(pd_rejected.code.value, pa_rejected.code.value)
+        self.assertEqual(pa_rejected.book, pa_first.book)
+        self.assertEqual(pd_rejected.state, pd_first.state)
+        self.assertEqual(_p_a_w05_state(pa_rejected.book), _p_d_w05_state(pd_rejected.state))
+
+
     def test_p_d_w05_publish_rejects_successor_while_prior_cancel_is_pending(self):
         names = frozenset(("cpu", "vdp"))
         pa_context = ADeadlineContext(
