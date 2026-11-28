@@ -317,11 +317,13 @@ class SyncOnDemandTests(unittest.TestCase):
         self.assertTrue(first.state._validated)
         self.assertIs(first.state._transition_by_id, state._transition_by_id)
         self.assertIs(first.state._transitions_by_owner, state._transitions_by_owner)
+        self.assertIs(first.state._transition_times_by_owner, state._transition_times_by_owner)
         second = synchronize(
             first.state, requested_domains=("cpu", "vdp"), target_common=Fraction(2)
         )
         self.assertEqual(second.code, SyncCode.REACHED)
         self.assertIs(second.state._transition_by_id, first.state._transition_by_id)
+        self.assertIs(second.state._transition_times_by_owner, first.state._transition_times_by_owner)
         self.assertEqual(second.state.observed, ("write", "observe"))
 
     def test_float_target_is_rejected(self):
