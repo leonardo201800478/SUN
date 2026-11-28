@@ -138,3 +138,12 @@ P-D still has no Failed status or partial-effect ledger, so R2's Failed-state ro
 ### Precisão de escopo — status Failed (28/11/2026)
 
 A inspeção direta de R2 e P-A confirmou que ambos definem Failed como status terminal e incluem esse status no validador de watermark. As APIs W05 de deadline, porém, não expõem uma operação de transição para Failed. O ledger de efeitos parciais/recuperação pertence aos contratos separados de ResourceLedger, transações e snapshots; não deve ser atribuído ao modelo de deadline W05. P-D não possui o enum Failed, então a matriz de estado preconstruído Failed não é comparável neste candidato. Isso permanece uma lacuna de representação/validação, não uma autorização para adicionar um enum sem contrato de transição.
+
+
+### FUP-01 — Claimed retrograde e fronteira candidate-local (28/11/2026)
+
+- R2/P-A classificam Claimed com D além de W como InvariantViolation. P-D agora preserva esse código no guard de Claimed com W existente e insuficiente; o teste diferencial percorre todas as operações comparáveis com W=9/D=10.
+- O caso W ausente não é tratado como equivalente: claim_next() cria um Claimed candidate-local sem W e os testes existentes exigem que continue possível selecionar candidatos sem transformar isso em claim global. Dispatch rejeita essa origem; completion antes de dispatch continua InvalidInput. Não se declara paridade para o caso R2 Claimed/W ausente.
+- Teste atualizado: test_p_d_w05_claimed_and_processed_states_require_closed_watermark_on_every_operation.
+- HEAD  e8eeb8fdb2fb9e26458d8d358da5d3ee8731081a; CI #46188553676 SUCCESS: R2 258/258 Linux e Windows; R3 317/317 Linux e Windows; corpus emitter 202/202 por OS; corpus canônico/replayável byte-identical; mutation checks R2 e Rust quality/unit regression PASS. Jobs de produção/hardware, Rust workspace e documentation patch hygiene SKIPPED.
+- FUP-01 permanece PARCIAL pelo caso Claimed/W ausente, Failed sem representação P-D e demais não comparáveis documentados.
