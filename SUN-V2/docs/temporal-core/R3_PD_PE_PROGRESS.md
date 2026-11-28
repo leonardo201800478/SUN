@@ -1,8 +1,8 @@
 # SUN V2 — progresso dos candidatos P-D/P-E (R3)
 
-**Data:** 2026-11-28  
-**Baseline P-A:** congelada em `466f789bc9bfc73c7d6388f31b3f9142b48acf78`  
-**HEAD validado:** `9feec831eb3c99294d8077aedfda46a896306dc4`  
+**Data:** 2026-11-28
+**Baseline P-A:** congelada em `466f789bc9bfc73c7d6388f31b3f9142b48acf78`
+**HEAD validado:** `9feec831eb3c99294d8077aedfda46a896306dc4`
 **CI:** [#11145 / run 46107673712](https://github.com/leonardo201800478/SUN/actions/runs/46107673712) — SUCCESS.
 
 ## 1. Validação executável
