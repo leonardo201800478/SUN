@@ -1,7 +1,7 @@
 """P-E W09 envelope audit against R2 metadata; not a machine-state projection.
 
 Only profile/model-version metadata is shared. The candidate identifier and
-input cursor remain harness/candidate metadata; SyncState fields are not
+input cursor remain candidate/harness metadata; SyncState fields are not
 coerced into R2 DomainState, DeadlineRecord, or InterruptRecord.
 """
 from __future__ import annotations
@@ -9,13 +9,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-from r3_candidate_snapshots import SnapshotArtifact
+from r3_candidate_snapshots import SnapshotArtifact as CandidateSnapshotArtifact
+from snapshot_reference import SnapshotArtifact as R2SnapshotArtifact
 
 
 class EnvelopeAuditCode(str, Enum):
     OK = "Ok"
     UNSUPPORTED = "Unsupported"
     INVALID_INPUT = "InvalidInput"
+    MISMATCH = "MetadataMismatch"
 
 
 @dataclass(frozen=True)
@@ -34,9 +36,25 @@ class EnvelopeAuditResult:
     detail: str = ""
 
 
-def audit_pe_envelope(artifact: SnapshotArtifact) -> EnvelopeAuditResult:
+@dataclass(frozen=True)
+class PEEnvelopeComparison:
+    profile_matches: bool
+    model_version_matches: bool
+    harness_input_cursor: int
+    cursor_comparable_to_r2: bool
+    not_comparable: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class EnvelopeComparisonResult:
+    code: EnvelopeAuditCode
+    comparison: PEEnvelopeComparison | None = None
+    detail: str = ""
+
+
+def audit_pe_envelope(artifact: CandidateSnapshotArtifact) -> EnvelopeAuditResult:
     """Audit P-E envelope metadata without projecting SyncState into MachineState."""
-    if not isinstance(artifact, SnapshotArtifact):
+    if not isinstance(artifact, CandidateSnapshotArtifact):
         return EnvelopeAuditResult(
             EnvelopeAuditCode.INVALID_INPUT, detail="expected candidate SnapshotArtifact"
         )
@@ -70,3 +88,46 @@ def audit_pe_envelope(artifact: SnapshotArtifact) -> EnvelopeAuditResult:
             ),
         ),
     )
+
+
+def compare_pe_r2_envelopes(
+    candidate: CandidateSnapshotArtifact,
+    reference: R2SnapshotArtifact,
+) -> EnvelopeComparisonResult:
+    """Compare only profile/version metadata; cursor and machine state are not projected."""
+    audit = audit_pe_envelope(candidate)
+    if audit.code is not EnvelopeAuditCode.OK:
+        return EnvelopeComparisonResult(audit.code, detail=audit.detail)
+    if not isinstance(reference, R2SnapshotArtifact):
+        return EnvelopeComparisonResult(
+            EnvelopeAuditCode.INVALID_INPUT, detail="expected R2 SnapshotArtifact"
+        )
+    if (
+        type(reference.profile) is not str or not reference.profile.strip()
+        or type(reference.model_version) is not str or not reference.model_version.strip()
+        or reference.state.profile != reference.profile
+        or reference.state.model_version != reference.model_version
+    ):
+        return EnvelopeComparisonResult(
+            EnvelopeAuditCode.INVALID_INPUT, detail="invalid or inconsistent R2 envelope metadata"
+        )
+    profile_matches = candidate.profile == reference.profile
+    version_matches = candidate.model_version == reference.model_version
+    comparison = PEEnvelopeComparison(
+        profile_matches=profile_matches,
+        model_version_matches=version_matches,
+        harness_input_cursor=candidate.input_cursor,
+        cursor_comparable_to_r2=False,
+        not_comparable=(
+            "P-E input_cursor has no R2 accepted-input-log counterpart",
+            "P-E SyncState is not projected into R2 MachineState",
+            "P-E TransactionBook equivalence is not established by envelope metadata",
+            "P-E has no R2 InterruptRecord/INT-ack representation",
+        ),
+    )
+    code = (
+        EnvelopeAuditCode.OK
+        if profile_matches and version_matches
+        else EnvelopeAuditCode.MISMATCH
+    )
+    return EnvelopeComparisonResult(code, comparison)
