@@ -155,3 +155,35 @@ Cada PR deve partir da `main`, conter apenas sua frente, referenciar os IDs FUP,
 - **FUP-02:** primeira fatia isolada na [PR #1291](https://github.com/leonardo201800478/SUN/pull/1291), READY FOR REVIEW. Adiciona quatro diferenciais P-E/P-A W03/W04 (empate não comutativo, empate comutativo canônico, participante desconhecido e observação retroativa). **CI #11238 PASS** no SHA `24d9e898a4ec97df80c8ffcb3acf9c4c67a571ce`: R3 276/276 Linux e Windows; R2 256/256 Linux e Windows; corpora equivalentes. FUP-02 permanece PARCIAL.
 - **FUP-03:** primeira fatia isolada na [PR #1292](https://github.com/leonardo201800478/SUN/pull/1292), READY FOR REVIEW. Acrescenta comparação P-A/P-D/P-E/R2 demonstrando que generation faz parte do descriptor estável: reutilizar a mesma identity com generation divergente é rejeitado como InvalidInput sem mutação. **CI #11242 PASS** no SHA `3b1980379d0bbfb23d27e9ba83b7488ad104c25f`: R3 273/273 Linux e Windows; R2 256/256 Linux e Windows; corpus equivalence PASS. A política de capacidade do TransactionBook e o acoplamento end-to-end continuam pendentes.
 - FUP-04 a FUP-07 permanecem pendentes e serão entregues em PRs próprias, sem misturar implementações independentes nesta PR de índice.
+
+
+### FUP-04 — auditoria de projeção semântica R2 (28/11/2026)
+
+A inspeção dos modelos de referência e dos candidatos identificou que "equivalência integral P-D/P-E/R2" não pode significar igualdade estrutural de snapshots. O \`MachineState\` do R2 contém \`domains\`, \`watermark\`, \`deadlines\`, \`transactions\`, \`interrupts\` e \`input_cursor\`; os candidatos não representam todos esses domínios com a mesma semântica.
+
+**R2 — referência normativa imutável**
+- \`snapshot_reference.py\`: valida e captura o \`MachineState\` completo; rejeita cortes de INT acknowledge cuja presença/commit do efeito é UNKNOWN como \`UnsupportedSnapshot\`, sem artefato; restore valida o artefato completo e a compatibilidade de profile/model_version antes de expor estado restaurado.
+- \`replay_reference.py\`: modela log de inputs aceitos, sequência, applied IDs, pending obligations, recalculate-required e virtual effects. Isso não é o mesmo formato nem a mesma semântica do sufixo de operações dos candidatos.
+
+**P-D — projeção compartilhada parcial**
+- O \`AgendaState\` contém eventos/deadlines, generation, watermark, heap, constraints, cancelamentos pendentes e \`TransactionBook\`.
+- Há uma projeção potencialmente comparável com R2 para watermark e parte do ledger de deadlines (identity/generation/tempo/estado/efeitos), além de subconjunto de campos das transações (identity/generation/state/progress/wait/sample/committed effects).
+- A projeção deve ser explícita e tipada. Não converter automaticamente heap, obligations, constraints ou \`ready_marker\` em campos R2; não sintetizar \`pending_effects\`, domínio/residual ou IRQ/ack ausentes. Diferenças sem contraparte devem ser relatadas como "não representadas", não como equivalência.
+
+**P-E — sem projeção de máquina integral**
+- \`SyncState\` contém domínios com \`progress/safe_horizon\`, transições, constraints, observed set, índices derivados e \`TransactionBook\`.
+- \`safe_horizon\`, dependências e relações par-a-par não têm equivalentes diretos no \`MachineState\` R2 (\`DomainState\` usa \`progress_common/residual\`; deadlines têm outro contrato). Não mapear horizon para residual, nem transição para deadline.
+- Para P-E, a comparação com R2 fica limitada a metadados do envelope, cursor fornecido pelo harness, integridade/atomicidade de capture/restore e campos transacionais que tenham correspondência semântica demonstrada. A semântica W03/W04 permanece comparada P-E/P-A.
+
+**Limites transversais**
+- P-D/P-E não modelam \`InterruptRecord\`; nenhum teste candidato pode alegar equivalência de IRQ/NMI/ack ou suporte a cortes que R2 classifica \`UnsupportedSnapshot\`.
+- \`r3_candidate_snapshots.py\` captura o estado completo do candidato e do \`TransactionBook\`, não uma máquina SMS completa. O cursor é metadado do harness; não é prova de que o log de replay dos candidatos seja idêntico ao log de inputs aceitos do R2.
+- R2 permanece imutável. Não preencher lacunas com campos sintéticos apenas para fazer os objetos parecerem iguais.
+
+**Plano executável FUP-04**
+1. Manter testes P-D/P-E de round-trip/replay candidato-local, tamper, incompatibilidade, sequência não contígua e falha atômica.
+2. Criar adaptador de projeção P-D→R2 somente para campos com correspondência demonstrada; comparar códigos, projeção e não mutação nos mesmos cortes compartilhados.
+3. Para P-E, testar separadamente o envelope e os invariantes candidatos; não exigir igualdade de \`SyncState\` com \`MachineState\`.
+4. Adicionar controles R2 de snapshot suportado e \`UnsupportedSnapshot\` para INT-ack UNKNOWN, preservando ausência de artefato e estado ativo.
+5. Reportar explicitamente campos cobertos, não representados e não comparáveis. FUP-04 só fecha com matriz e CI Linux/Windows no SHA exato; não basta round-trip candidato-local.
+
