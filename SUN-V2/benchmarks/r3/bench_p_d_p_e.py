@@ -469,7 +469,8 @@ def main() -> int:
             "synthetic Python measurements only; not native Rust runtime or SMS hardware",
             "P-D currently measures W01/W02 heap claim order, not cancellation admission/arbitration or full watermark participant contracts",
             "P-E currently measures W03/W04 causal closure; W06/W07 are conformance tests, not timing benchmarks",
-            "W08 transaction lifecycle and W09 snapshot/replay are not yet integrated into P-D/P-E candidate state",
+            "W08 TransactionBook is carried by P-D/P-E state and covered by differential lifecycle tests; this timing matrix does not measure W08 operations",
+            "W09 snapshot/restore/replay is not yet implemented for P-D/P-E candidate state; current W09 fixtures validate P-A against R2",
             "wall-time is comparable only within the same runner and execution; coarse Windows CPU clock is not measured",
         ],
     }
