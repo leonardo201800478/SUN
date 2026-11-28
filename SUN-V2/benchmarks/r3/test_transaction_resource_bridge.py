@@ -104,6 +104,20 @@ class TransactionResourceBridgeTests(unittest.TestCase):
         self.assertEqual(divergent.code, BridgeCode.INVALID_INPUT)
         self.assertEqual(divergent.state, first.state)
 
+    def test_malformed_retry_descriptor_is_rejected_before_identity_access(self):
+        first = admit(initial(capacity=10), amount=7)
+
+        malformed = reserve_and_submit(
+            first.state,
+            None,
+            amount=7,
+            marker_effects=(("commit-1", "effect-1"), ("commit-2", "effect-2")),
+        )
+
+        self.assertEqual(malformed.code, BridgeCode.INVALID_INPUT)
+        self.assertEqual(malformed.detail, "invalid transaction descriptor")
+        self.assertEqual(malformed.state, first.state)
+
     def test_commit_marker_and_resource_effect_commit_exactly_once(self):
         first = admit(initial(capacity=10), amount=7)
         reference = r2_reserve(
