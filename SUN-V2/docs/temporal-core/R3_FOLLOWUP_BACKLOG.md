@@ -283,3 +283,14 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 - Commit: `354d2a5da7b5d12885ade6f045de8387f309acde`; CI #46173011966 [SUCCESS](https://github.com/leonardo201800478/SUN/actions/runs/46173011966). R2 independente Linux, R2 Python Windows, R3 Linux/Windows, corpora canônico/replayável equivalentes e Rust quality/unit regression: PASS.
 - Jobs de produção SMS/Z80/VDP/PSG/YM2413/CPAL/SDL3/Slint/WGPU/scheduler: SKIPPED, não PASS.
 - Finding P2 da revisão continua aberto no GitHub até confirmação/revisão; a correção está validada pela CI, mas não foi marcado como resolvido por automação.
+
+
+### Consolidação FUP-02 — matriz de rastreabilidade W03/W04 (28/11/2026)
+
+- Criado `SUN-V2/docs/temporal-core/R3_FUP02_W03_W04_TRACEABILITY.md`, com crosswalk dos 13 casos R2 causal synchronization, 6 casos R2 partial-order e fixtures replayáveis W03/W04.
+- A matriz separa P-A↔R2, P-E↔P-A e fixtures P-A↔R2; não afirma que as duas arestas transitivas equivalem a um replay triplo idêntico.
+- P-E tem seis diferenciais expandidos P-E/P-A, 19 testes próprios e fixtures W03/W04 separados P-A/R2. Os fixtures W03/W04 não executam P-E.
+- A cobertura de P-E não reproduz as 120 permutações de cinco eventos para todos os grupos R2 partial-order; pares e cadeias selecionadas não são substitutos.
+- `Blocked` para dependência ausente em R2 e `InvalidInput` para descritor de dependência desconhecido em P-E permanecem classificações distintas até prova de que as pré-condições são idênticas.
+- **W06 permanece UNKNOWN; W07 permanece UNKNOWN/BLOCKED.** Positive control com phase basis sintética não prova fase física; microstep não resolve relação B/C.
+- **FUP-02 permanece PARCIAL.** Documento criado na branch `research/chronos-r3-follow-up`, commit `610e7018aab8bcd53ecf6583c6859f2671f8cdca`. Sem alteração de código de produção.
