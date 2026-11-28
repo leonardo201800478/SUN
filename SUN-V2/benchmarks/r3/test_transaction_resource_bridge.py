@@ -24,7 +24,8 @@ from r3_transaction_core import (
 from transaction_resource_bridge import (
     BridgeCode, TransactionResourceState, audit_recovery_boundary,
     commit_marker_with_resource, fail_transaction_with_resource,
-    reach_transaction_marker, reserve_and_submit, start_transaction,
+    reach_transaction_marker, reserve_and_submit, sample_transaction_marker,
+    start_transaction,
 )
 
 
@@ -45,6 +46,28 @@ def spec():
         markers=(
             TxMarker("commit-1", MarkerKind.COMMIT, Fraction(1), True),
             TxMarker("commit-2", MarkerKind.COMMIT, Fraction(2), True),
+        ),
+    )
+
+
+def spec_with_sample():
+    return TxSpec(
+        identity="tx-bridge",
+        generation=0,
+        origin="cpu",
+        destination="vdp",
+        operation="write",
+        profile="SMS-NTSC",
+        payload="payload",
+        admitted_at=Fraction(0),
+        start_at=Fraction(0),
+        duration_base=Fraction(0),
+        automatic_tws=0,
+        external_tws=0,
+        markers=(
+            TxMarker("sample-1", MarkerKind.SAMPLE, Fraction(1), True),
+            TxMarker("commit-1", MarkerKind.COMMIT, Fraction(2), True),
+            TxMarker("commit-2", MarkerKind.COMMIT, Fraction(3), True),
         ),
     )
 
@@ -118,6 +141,58 @@ class TransactionResourceBridgeTests(unittest.TestCase):
         self.assertEqual(malformed.code, BridgeCode.INVALID_INPUT)
         self.assertEqual(malformed.detail, "invalid transaction descriptor")
         self.assertEqual(malformed.state, first.state)
+
+    def test_sample_marker_returns_to_in_progress_before_commit_and_is_idempotent(self):
+        accepted = reserve_and_submit(
+            initial(capacity=10),
+            spec_with_sample(),
+            amount=7,
+            marker_effects=(("commit-1", "effect-1"), ("commit-2", "effect-2")),
+        )
+        self.assertEqual(accepted.code, BridgeCode.OK)
+        started = start_transaction(accepted.state)
+        reached_sample = reach_transaction_marker(started.state, Fraction(1))
+        self.assertEqual(reached_sample.code, BridgeCode.OK)
+        self.assertEqual(
+            reached_sample.state.book.transactions[0].state, TxState.READY
+        )
+        resources_before_sample = reached_sample.state.resources
+
+        sampled = sample_transaction_marker(
+            reached_sample.state, "sample-1", "sampled-bus-value"
+        )
+        self.assertEqual(sampled.code, BridgeCode.OK)
+        self.assertEqual(sampled.sampled_value, "sampled-bus-value")
+        self.assertEqual(
+            sampled.state.book.transactions[0].state, TxState.IN_PROGRESS
+        )
+        self.assertEqual(
+            sampled.state.book.transactions[0].sampled,
+            (("sample-1", "sampled-bus-value"),),
+        )
+        self.assertEqual(sampled.state.resources, resources_before_sample)
+
+        retried = sample_transaction_marker(
+            sampled.state, "sample-1", "different-retry-value"
+        )
+        self.assertEqual(retried.code, BridgeCode.OK)
+        self.assertEqual(retried.sampled_value, "sampled-bus-value")
+        self.assertEqual(retried.state, sampled.state)
+
+        reached_commit = reach_transaction_marker(
+            retried.state, Fraction(2)
+        )
+        self.assertEqual(reached_commit.code, BridgeCode.OK)
+        committed = commit_marker_with_resource(
+            reached_commit.state, "commit-1"
+        )
+        self.assertEqual(committed.code, BridgeCode.OK)
+        self.assertEqual(
+            committed.state.book.transactions[0].committed, ("commit-1",)
+        )
+        self.assertEqual(
+            committed.state.resources.committed_effects, ("effect-1",)
+        )
 
     def test_commit_marker_and_resource_effect_commit_exactly_once(self):
         first = admit(initial(capacity=10), amount=7)
