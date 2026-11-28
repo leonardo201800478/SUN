@@ -1984,5 +1984,58 @@ class CandidateDifferentialTests(unittest.TestCase):
 
 
 
+    def test_p_d_w05_scheduled_event_behind_closed_watermark_is_rejected_by_all_operations(self):
+        names = frozenset(("cpu",))
+        context = AgendaContext(
+            (AgendaParticipant("cpu", Fraction(0), Fraction(100)),),
+            names,
+            watermark_common=Fraction(5),
+        )
+        event = AgendaEvent(
+            "w05-retrograde-scheduled", 1, "cpu", Fraction(4),
+            "effect", EventStatus.SCHEDULED,
+        )
+        state = AgendaState(
+            heap=((Fraction(4), "w05-retrograde-scheduled", 1),),
+            events=(event,),
+            watermark_common=Fraction(5),
+        )
+        operations = (
+            ("publish", p_d_publish_with_context(
+                state, context, owner="cpu", identity="new",
+                generation=1, at_common=Fraction(10),
+                effect_id="new-effect",
+            )),
+            ("cancel", p_d_request_cancel(
+                state, context, owner="cpu",
+                identity="w05-retrograde-scheduled", generation=1,
+                at_common=Fraction(6),
+            )),
+            ("arbitrate", p_d_arbitrate_cancellations(state)),
+            ("close", p_d_close_watermark(state, Fraction(6), context)),
+            ("dispatch", p_d_dispatch_event(
+                state, "w05-retrograde-scheduled", 1,
+            )),
+            ("complete", p_d_complete(
+                state, "w05-retrograde-scheduled", 1,
+            )),
+            ("replace", p_d_replace_with_context(
+                state, context, owner="cpu",
+                identity="w05-retrograde-scheduled", generation=1,
+                cancel_at=Fraction(6), new_generation=2,
+                new_at_common=Fraction(10),
+                new_effect_id="replacement-effect",
+            )),
+        )
+        for operation, result in operations:
+            with self.subTest(operation=operation):
+                self.assertEqual(
+                    result.code, AgendaCode.INVALID_INPUT,
+                    f"{operation}: {result.detail}",
+                )
+                self.assertEqual(result.state, state)
+
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
