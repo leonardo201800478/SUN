@@ -641,3 +641,20 @@ The three P2 findings from the final review were addressed, and the review's P3 
 
 
 The first validation run after introducing setup-python failed at environment provisioning: Python 3.14.4 was not available for Ubuntu 26.04. This was a setup failure before any R3 test executed, not a test result. Both R3 jobs now pin 3.14.10; a fresh CI run is required. The R2 Windows job remains unchanged.
+
+
+### 17.6 CI #11104 — follow-up fixes validated on both platforms
+
+**Validated HEAD:** `65a81156bf5d9cb67946e78c930f8f90fdeefef3`. **Run:** [CI #11104 / 46100003064](https://github.com/leonardo201800478/SUN/actions/runs/46100003064) — **SUCCESS**.
+
+- R3 disposable suite: **203/203 PASS Linux and 203/203 PASS Windows**, using Python 3.14.10 on both.
+- Corpus emitter: **181 tests PASS** on both systems.
+- Canonical corpus: **117 fixtures / 1,481 cuts** (1,470 differential + 11 property); trace digest `47ffc943d269f68b3a87bd0398a0fa1f46a43d341a3dce447a5d8da7d9ee3d0b`.
+- Replayable corpus: **25 fixtures / 134 operations-cuts**, preserving W06/W07 divergences; corpus digest `d978fe0a8591df6526ffc6835d250e1e393fdddbcc6c6a2a13a3e8ac50aba111`.
+- Both corpora byte-identical Linux/Windows; R2 independent Linux and R2 Python Windows PASS; all seven applicable P-A synthetic matrices PASS on both systems.
+- Workflow validation, documentation patch hygiene, change-impact classification and Rust quality supervisor PASS.
+- Windows benchmark CPU-time samples remain `SKIPPED_COARSE_RESOLUTION`; hardware/runtime/desktop and subsystem Rust jobs remain SKIPPED, not PASS.
+
+The run validates the three snapshot/W07 corrections and the Python reproducibility correction. The W09 Scheduled records in valid round-trip fixtures now use D=9 with W=8; invalid D≤W cases remain covered as negative tests. No R1 v0.3.18 or R2 executable-oracle changes were made.
+
+**Disposition remains limited:** W06 physical UNKNOWN; W07 physical B/C BLOCKED; P-A still has a recorded P-A/R2 microstep divergence and no closeout; P-D/P-E NOT RUN/BLOCKED; R3 in progress; R4/R5 pending. This CI does not prove physical causality, hardware SMS behavior, Rust performance, or 60 FPS.
