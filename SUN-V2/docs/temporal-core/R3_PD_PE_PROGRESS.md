@@ -188,3 +188,101 @@ These results are **OBSERVATION** for synthetic Python prototypes only. They are
 - **Physical semantics:** automatic TW, external TW, fixture WAIT and dependency WAIT are logical categories in this prototype. The differential tests establish candidate/oracle consistency for the tested cases, not the exact SMS bus timing or the physical provenance of any WAIT.
 
 These items remain review findings/assumptions for R4. They are not reasons to invent hardware semantics or to mark W08/W09 physical fidelity as PASS.
+
+
+---
+
+## Current continuation status — W05 expanded differential and W09 candidate snapshots
+
+**Validated code HEAD:** `8bc73d4888203a1866d58e3a44cf0a9854f0f7c9`.  
+**CI #11222:** [run 46157464321](https://github.com/leonardo201800478/SUN/actions/runs/46157464321) — **SUCCESS**.
+
+This section supersedes earlier statements above that P-D/P-A differential coverage was limited to W01/W02 and that P-D/P-E W09 snapshot support was not implemented.
+
+### 1. Executed validation
+
+- R3 disposable prototypes: **272/272 PASS Linux and 272/272 PASS Windows**.
+- P-A canonical/replayable emitter: **186/186 PASS per OS**.
+- Independent R2 reference: **256/256 PASS Linux and 256/256 PASS Windows**, including deliberate mutation checks.
+- R2 Python reference suite on Windows: **256/256 PASS**.
+- Canonical corpus: **119 fixtures / 1,483 cuts** (1,472 differential + 11 property); logical digest `ab5e146eda37e8292159cc5440beca615c5b511383e3807b24adbacbb490056b`.
+- Replayable corpus: **30 fixtures / 143 operations-cuts**; logical digest `ed039c1985d1a0d1dee518a33bfcbbefd3713368e040e113f4b8d856c255e215`.
+- Canonical and replayable JSON artifacts were independently downloaded and compared: byte-identical Linux/Windows. Replayable corpus retains exactly two deliberate P-A/R2 divergences: W06 distinct synthetic phase bases and W07 pending commutative sibling overtaking.
+- Change-impact classification, workflow validation, documentation patch hygiene, corpus equivalence and Rust quality/unit regression supervisor: PASS.
+- Rust workspace regression, Z80, VDP, PSG, YM2413, CPAL, SDL3 and Slint/WGPU subsystem jobs remain **SKIPPED**. Supervisor PASS does not mean those jobs ran.
+
+### 2. W05 — expanded P-D/P-A and P-A/R2 differential
+
+P-D `AgendaContext` now carries explicit `AgendaObligation` records (identity, owner, exact common-time coordinate, resolved and commutative flags), in addition to expected participants, progress, safe horizons and watermark.
+
+The P-D differential suite now covers:
+- Complete and incomplete expected-participant sets.
+- Global safe horizon behind participant progress or the confirmed watermark.
+- Unresolved obligations behind the admission frontier or at/behind the watermark.
+- Future unresolved and already-resolved obligations.
+- Context/book watermark disagreement.
+- Cancellation owner outside the declared participant set.
+- C<D cancellation where W may cross C but must not cross D before arbitration.
+- C=D without causal evidence, and C>D late input.
+- Explicit same-instant microstep ordering and finite microstep exhaustion.
+- Atomic rejection without mutation.
+
+P-D now returns `InvariantViolation` for known safe-horizon regressions and unresolved-obligation frontier violations, and `Blocked` when cancellation owner/participant admission is incomplete. The R3 suite compares full normalized P-D/P-A W05 state for the tested cases.
+
+The P-A/R2 replayable fixtures additionally compare:
+- W crossing C while remaining below D, followed by arbitration before crossing D.
+- Unresolved obligations behind the admission frontier or watermark.
+- Future unresolved and resolved obligations.
+
+These are synthetic contract comparisons, not evidence of a physical SMS bus cancellation source, event ordering or phase.
+
+### 3. W08 — shared transaction ledger
+
+W08 remains integrated into P-D/P-E candidate state through the immutable shared `TransactionBook`. The differential lifecycle tests cover retry/identity, all three WAIT sources, exactly-once sample and commit, base duration, automatic/external TW, cancellation, partial failure, recovery and completion.
+
+The ledger has no explicit transaction-capacity budget. Identity remains unique within a book; a divergent descriptor or generation under the same identity is rejected rather than superseding the prior generation. Same-identity generation replacement remains **UNKNOWN** as a hardware requirement. Transaction lifecycle is not yet end-to-end coupled to agenda claims, P-E observed transitions or a modeled bus completion pipeline.
+
+### 4. W09 — candidate-local snapshot/restore/replay
+
+New module: `SUN-V2/benchmarks/r3/r3_candidate_snapshots.py`.
+
+The disposable candidate snapshot envelope contains:
+- Candidate identity (P-D/P-E), profile, model version and input cursor.
+- Canonical JSON payload and SHA-256 integrity digest.
+- Exact rational values; no floating-point time serialization.
+- Complete public P-D state, including event heap, events, constraints, pending cancellations and W08 transaction ledger.
+- Complete public P-E state, including domains, transitions, constraints, observed set and W08 transaction ledger. Derived transition/relation/commutativity indexes are rebuilt on restore rather than serialized as authority.
+
+Restore validates the artifact, exact metadata types, schema, digest, candidate invariants and W08 ledger before returning a separate restored state. Incompatible or forged artifacts leave the active state untouched.
+
+Replay accepts a sequence-numbered suffix after the snapshot cursor, sorts by logical sequence, rejects duplicates/gaps, and returns the original restored state/cursor if any operation fails. P-D replay events carry the full contextual input needed to reconstruct participants, watermark and obligations; P-E replay events carry synchronization request parameters.
+
+W09 tests now include pending cancellation plus a scheduled future heap entry, P-E dependency and commutative indexes, sampled and committed effects, base/automatic/external TW consumption, WAIT dependency, failed partial commit, explicit recovery, cancellation, completion, profile/version mismatch, digest tampering, boolean cursor forgery, sequence gaps and mid-replay failure atomicity.
+
+**Scope boundary:** this is a candidate-local snapshot of fields represented by P-D/P-E, not a complete SMS machine snapshot. CPU, IRQ, VDP, PSG and other absent machine state are not invented or serialized. Candidate-local round-trip/replay is tested, but full P-D/P-E snapshot equivalence against the immutable P-A/R2 machine snapshot oracle is **NOT ESTABLISHED**. W09 must not be called fully reference-equivalent or physically validated.
+
+### 5. Paired performance — CI #11221
+
+The paired Python matrix was rerun after the P-D W05 context and W08/W09 candidate work. It contains 36 points per OS (18 P-D, 18 P-E), 5 warm-ups and 30 measured repetitions per candidate/point. Fixture construction and JSON serialization are outside the timed region. Values below 1.0 are lower candidate/P-A wall-time ratios; p50/p95/p99 are medians of per-point ratios.
+
+| Candidate | OS | p50 ratio | p95 ratio | p99 ratio | Worst per-point p50 |
+|---|---|---:|---:|---:|---:|
+| P-D | Linux | 0.753× | 0.755× | 0.804× | **1.326×** |
+| P-D | Windows | 0.787× | 0.833× | 0.886× | **1.311×** |
+| P-E | Linux | 0.844× | 0.764× | 0.494× | **1.131×** |
+| P-E | Windows | 0.862× | 0.838× | 0.545× | **1.173×** |
+
+All 36/36 paired outputs per OS were equivalent. Worst p50: P-D dense agenda, 4 domains/128 deadlines; P-E dependency chain, fan-in 1/depth 16. Linux CPU-time was measured; Windows CPU-time remains `SKIPPED_COARSE_RESOLUTION` (15,625,000 ns resolution).
+
+The timing matrix still measures P-D W01/W02 and P-E W03/W04. It does not time W05, W08 transaction lifecycle or W09 snapshot/replay. These are **OBSERVATION** for synthetic Python only, not Rust performance, physical SMS timing, GUI frame pacing or a 60 FPS claim.
+
+### 6. Remaining R3 gates and review
+
+- P-E/P-A differential scope remains W03/W04; W06/W07 conformance remains synthetic and does not resolve physical phase or B/C.
+- W06 physical phase remains **UNKNOWN**. W07 physical B/C remains **UNKNOWN/BLOCKED**.
+- W09 candidate-local snapshots pass their current tests, but full P-D/P-E to P-A/R2 snapshot equivalence remains open.
+- W08 transaction capacity, same-identity generation replacement and end-to-end bus coupling remain open.
+- No formal independent GitHub review approval is recorded. The prior `@codex review` request was blocked by the Codex code-review usage limit; independent adversarial review remains pending.
+- R3 remains **IN PROGRESS**. R4/R5 are not approved. No production CHRONOS/V2 implementation is authorized before R5.
+
+**Next technical work:** complete the remaining W05 edge-case differential audit, decide how W09 candidate extensions can be compared without mutating the immutable R2 oracle, review W08 resource/generation boundaries, then obtain independent adversarial review. Do not close R3 while these reference-equivalence and review gaps remain.
