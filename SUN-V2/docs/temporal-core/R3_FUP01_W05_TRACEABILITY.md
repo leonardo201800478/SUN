@@ -124,5 +124,12 @@ P-D still has no Failed status or partial-effect ledger, so R2's Failed-state ro
 
 - A fronteira foi refinada para não invalidar o claim local experimental: apenas Dispatched/Completed são invariantes globais no validador P-D; Claimed sem W continua candidate-local e não pode avançar para dispatch. Claimed com W retrograde permanece rejeitado pelo guard estrutural existente, mas sua correspondência com o caso R2 não é declarada direta enquanto o estado candidate-local não for distinguível.
 - O código de validação pré-existente para Dispatched/Completed foi alterado para preservar explicitamente InvariantViolation, em vez de InvalidInput; a duplicação introduzida no primeiro patch foi removida.
-- Novo HEAD de código: 6a0ed8d1fc3da272dd9d467f0d1affdff837620d. CI #46188000773 QUEUED/PENDING na última consulta; aguardar conclusão Linux/Windows antes de registrar PASS.
+- HEAD 6a0ed8d1fc3da272dd9d467f0d1affdff837620d validado por CI #46188000773 SUCCESS: R2 258/258 Linux e Windows; R3 316/316 Linux e Windows; corpus emitter 202/202 por OS; corpus canônico/replayável byte-identical; mutation checks R2 e Rust quality/unit regression PASS. Jobs de produção/hardware e Rust workspace SKIPPED.
 - FUP-01 segue PARCIAL. R2/R1 permanecem intocados; nenhum código de produção CHRONOS/V2 foi criado.
+
+
+### FUP-01 — Scheduled retrograde watermark crosswalk (28/11/2026; CI pendente)
+
+- R2 test_scheduled_deadline_behind_closed_watermark_is_rejected_by_all_operations foi comparado com P-D. O protótipo já rejeitava globalmente eventos Scheduled em/atrás de W, mas faltava um teste diferencial que percorresse as operações equivalentes e verificasse atomicidade.
+- Novo teste: test_p_d_w05_scheduled_event_behind_closed_watermark_is_rejected_by_all_operations. Estado preconstruído D=4/W=5; publish, cancel request, arbitration, close W, dispatch, completion e replacement devem retornar InvalidInput sem alterar o estado. schedule_microstep não possui operação P-D correspondente e permanece explicitamente não comparável.
+- HEAD atual da PR #1290: 0138fe5d26e7947b2aa5833176fbce5b49156f4f. CI ainda não apareceu na consulta; não há PASS para este teste até validar Linux/Windows no SHA exato.
