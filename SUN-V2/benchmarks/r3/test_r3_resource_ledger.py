@@ -4,7 +4,6 @@ from __future__ import annotations
 import unittest
 
 from resource_reference import (
-    ResourceCode as R2Code,
     ResourceLedger as R2Ledger,
     commit_effect as r2_commit,
     fail as r2_fail,
@@ -23,7 +22,9 @@ from r3_resource_ledger import (
 
 def pair(ledger, r2_ledger):
     """Assert exact result-code and immutable-ledger agreement."""
-    return ledger == r2_ledger
+    return tuple(getattr(ledger, name) for name in ledger.__dataclass_fields__) == tuple(
+        getattr(r2_ledger, name) for name in r2_ledger.__dataclass_fields__
+    )
 
 
 class R3ResourceLedgerDifferentialTests(unittest.TestCase):
