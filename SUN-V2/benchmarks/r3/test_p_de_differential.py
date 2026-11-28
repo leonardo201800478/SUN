@@ -383,6 +383,82 @@ class CandidateDifferentialTests(unittest.TestCase):
                 self.assertEqual(pd.code.value, pa.code.value)
                 self.assertEqual(_p_a_w05_state(pa.book), _p_d_w05_state(pd.state))
 
+    def test_p_d_w05_incomplete_participants_and_watermark_mismatch_match_p_a(self):
+        names = frozenset(("cpu", "vdp"))
+        complete_pa = ADeadlineContext(
+            (
+                AParticipant("cpu", Fraction(0), Fraction(100)),
+                AParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        complete_pd = AgendaContext(
+            (
+                AgendaParticipant("cpu", Fraction(0), Fraction(100)),
+                AgendaParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        pa_book = ADeadlineBook(deadlines=(
+            ADeadline("cpu", "incomplete-participants", 0, Fraction(10), "effect"),
+        ))
+        pd_state = p_d_publish(
+            AgendaState(), identity="incomplete-participants", generation=0,
+            owner="cpu", at_common=Fraction(10), effect_id="effect",
+        ).state
+        incomplete_pa = ADeadlineContext(
+            (AParticipant("cpu", Fraction(0), Fraction(100)),), names
+        )
+        incomplete_pd = AgendaContext(
+            (AgendaParticipant("cpu", Fraction(0), Fraction(100)),), names
+        )
+        pa = p_a_cancel_deadline(
+            pa_book, incomplete_pa, owner="cpu",
+            identity="incomplete-participants", generation=0,
+            at_common=Fraction(8),
+        )
+        pd = p_d_request_cancel(
+            pd_state, incomplete_pd, owner="cpu",
+            identity="incomplete-participants", generation=0,
+            at_common=Fraction(8),
+        )
+        self.assertEqual(pa.code.value, "Blocked")
+        self.assertEqual(pd.code.value, pa.code.value)
+        self.assertEqual(_p_a_w05_state(pa.book), _p_d_w05_state(pd.state))
+
+        pa_book = ADeadlineBook(
+            deadlines=(
+                ADeadline("cpu", "watermark-mismatch", 0, Fraction(10), "effect"),
+            ),
+            watermark_common=Fraction(9),
+        )
+        pd_state = replace(
+            p_d_publish(
+                AgendaState(), identity="watermark-mismatch", generation=0,
+                owner="cpu", at_common=Fraction(10), effect_id="effect",
+            ).state,
+            watermark_common=Fraction(9),
+        )
+        mismatched_pa = ADeadlineContext(
+            complete_pa.participants, names, watermark_common=Fraction(8)
+        )
+        mismatched_pd = AgendaContext(
+            complete_pd.participants, names, Fraction(8)
+        )
+        pa = p_a_publish_deadline(
+            pa_book, mismatched_pa, owner="cpu",
+            identity="new-deadline", generation=0,
+            at_common=Fraction(11), effect_id="new-effect",
+        )
+        pd = p_d_publish_with_context(
+            pd_state, mismatched_pd, owner="cpu",
+            identity="new-deadline", generation=0,
+            at_common=Fraction(11), effect_id="new-effect",
+        )
+        self.assertEqual(pa.code.value, "IndeterminateCausalOrder")
+        self.assertEqual(pd.code.value, pa.code.value)
+        self.assertEqual(_p_a_w05_state(pa.book), _p_d_w05_state(pd.state))
+
     def test_p_d_w05_same_instant_microstep_order_and_budget_match_p_a(self):
         names = frozenset(("cpu", "vdp"))
         pa_context = ADeadlineContext(
