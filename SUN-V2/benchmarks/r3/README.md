@@ -295,3 +295,24 @@ The downloaded Linux/Windows artifacts were independently inspected after [CI #1
 - Total: 25 replayable fixtures, 134 operations and 134 cuts. W06/W07 intentionally retain the two P-A/R2 divergences.
 
 This verifies at least one replayable fixture for each W00–W09 category. It does not establish exhaustive parameter/edge-case coverage or P-D/P-E equivalence; current replayable fixtures compare P-A against R2.
+
+
+---
+
+## Current P-D/P-E status — CI #11222 (28/11/2026)
+
+**Validated code HEAD:** `8bc73d4888203a1866d58e3a44cf0a9854f0f7c9`.  
+**CI #11222:** [run 46157464321](https://github.com/leonardo201800478/SUN/actions/runs/46157464321) — SUCCESS.
+
+This status supersedes earlier statements in this README that P-D/P-E were NOT RUN/BLOCKED.
+
+- **P-D W05:** contextual agenda now models participants, safe horizons, watermark, causal obligations, cancellation arbitration and finite microsteps. Differential P-D/P-A tests cover incomplete participants, safe-horizon violations, unresolved obligations, watermark mismatch, owner admission, C/D cancellation boundaries and explicit microstep order.
+- **P-E:** W03/W04 synchronization candidate remains in differential testing. Its transition/relation/commutativity indexes are reconstructed from immutable source state.
+- **W08:** P-D/P-E carry the shared immutable `TransactionBook`; lifecycle tests compare the complete transaction ledger against P-A for the tested scenarios. Resource capacity and same-identity generation replacement remain open.
+- **W09:** `r3_candidate_snapshots.py` provides candidate-local canonical snapshot/restore/replay for P-D/P-E, including the shared transaction book and input cursor. This is not a complete SMS machine snapshot and full P-D/P-E to P-A/R2 snapshot equivalence is not established.
+- **CI #11222:** R3 272/272 PASS Linux and Windows; P-A emitter 186/186 per OS; independent R2 256/256 per OS with mutation checks PASS; canonical and replayable corpora byte-identical across platforms.
+- **Corpora:** canonical 119 fixtures/1,483 cuts; replayable 30 fixtures/143 operations-cuts. The two W06/W07 P-A/R2 divergences remain explicit and replayable.
+- **Performance:** latest paired synthetic Python matrix is recorded in [R3_PD_PE_PROGRESS.md](../../docs/temporal-core/R3_PD_PE_PROGRESS.md). It does not measure W05/W08/W09 operations, native Rust or frame pacing.
+- **Evidence limits:** W06 physical phase and W07 physical B/C remain UNKNOWN/BLOCKED. No SMS hardware behavior is inferred from synthetic fixtures.
+
+**Gate state:** R3 remains IN PROGRESS; R4 and R5 are not approved. Independent adversarial review is pending. No production CHRONOS/V2 code is authorized before R5.
