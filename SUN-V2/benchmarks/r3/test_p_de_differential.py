@@ -1356,6 +1356,17 @@ class CandidateDifferentialTests(unittest.TestCase):
         self.assertEqual(repeated_complete_pa.book, completed_pa.book)
         self.assertEqual(repeated_complete_pd.state, completed_pd.state)
 
+        dispatch_after_complete_pa = p_a_dispatch_deadline(
+            completed_pa.book, identity="w05-lifecycle", generation=0,
+        )
+        dispatch_after_complete_pd = p_d_dispatch_event(
+            completed_pd.state, "w05-lifecycle", 0,
+        )
+        self.assertEqual(dispatch_after_complete_pa.code.value, "Accepted")
+        self.assertEqual(dispatch_after_complete_pd.code.value, dispatch_after_complete_pa.code.value)
+        self.assertEqual(dispatch_after_complete_pa.book, completed_pa.book)
+        self.assertEqual(dispatch_after_complete_pd.state, completed_pd.state)
+
 
     def test_p_d_w05_unwatermarked_claim_cannot_dispatch_or_complete(self):
         state = p_d_publish(
@@ -1371,6 +1382,160 @@ class CandidateDifferentialTests(unittest.TestCase):
         self.assertEqual(dispatched.state, before)
         self.assertEqual(completed.code, AgendaCode.INVALID_INPUT)
         self.assertEqual(completed.state, before)
+
+
+    def test_p_d_w05_dispatched_generation_cannot_be_replaced_until_completed(self):
+        names = frozenset(("cpu", "vdp"))
+        open_pa_context = ADeadlineContext(
+            (
+                AParticipant("cpu", Fraction(0), Fraction(100)),
+                AParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        open_pd_context = AgendaContext(
+            (
+                AgendaParticipant("cpu", Fraction(0), Fraction(100)),
+                AgendaParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        pa = p_a_publish_deadline(
+            ADeadlineBook(), open_pa_context, owner="cpu",
+            identity="w05-dispatched-replacement", generation=0,
+            at_common=Fraction(10), effect_id="old",
+        )
+        pd = p_d_publish_with_context(
+            AgendaState(), open_pd_context, owner="cpu",
+            identity="w05-dispatched-replacement", generation=0,
+            at_common=Fraction(10), effect_id="old",
+        )
+        pa_closed = p_a_close_watermark(pa.book, Fraction(10))
+        pd_closed = p_d_close_watermark(pd.state, Fraction(10), open_pd_context)
+        pa_dispatched = p_a_dispatch_deadline(
+            pa_closed.book, identity="w05-dispatched-replacement", generation=0,
+        )
+        pd_dispatched = p_d_dispatch_event(
+            pd_closed.state, "w05-dispatched-replacement", 0,
+        )
+        self.assertEqual(pa_dispatched.code.value, "Accepted")
+        self.assertEqual(pd_dispatched.code.value, pa_dispatched.code.value)
+        self.assertEqual(_p_a_w05_state(pa_dispatched.book), _p_d_w05_state(pd_dispatched.state))
+
+        closed_pa_context = replace(open_pa_context, watermark_common=Fraction(10))
+        closed_pd_context = replace(open_pd_context, watermark_common=Fraction(10))
+        rejected_pa = p_a_publish_deadline(
+            pa_dispatched.book, closed_pa_context, owner="cpu",
+            identity="w05-dispatched-replacement", generation=1,
+            at_common=Fraction(12), effect_id="new",
+        )
+        rejected_pd = p_d_publish_with_context(
+            pd_dispatched.state, closed_pd_context, owner="cpu",
+            identity="w05-dispatched-replacement", generation=1,
+            at_common=Fraction(12), effect_id="new",
+        )
+        self.assertEqual(rejected_pa.code.value, "InvalidInput")
+        self.assertEqual(rejected_pd.code.value, rejected_pa.code.value)
+        self.assertEqual(rejected_pa.book, pa_dispatched.book)
+        self.assertEqual(rejected_pd.state, pd_dispatched.state)
+
+        completed_pa = p_a_complete_deadline(
+            pa_dispatched.book, identity="w05-dispatched-replacement", generation=0,
+        )
+        completed_pd = p_d_complete(
+            pd_dispatched.state, "w05-dispatched-replacement", 0,
+        )
+        self.assertEqual(completed_pa.code.value, "Accepted")
+        self.assertEqual(completed_pd.code.value, completed_pa.code.value)
+        allowed_pa = p_a_publish_deadline(
+            completed_pa.book, closed_pa_context, owner="cpu",
+            identity="w05-dispatched-replacement", generation=1,
+            at_common=Fraction(12), effect_id="new",
+        )
+        allowed_pd = p_d_publish_with_context(
+            completed_pd.state, closed_pd_context, owner="cpu",
+            identity="w05-dispatched-replacement", generation=1,
+            at_common=Fraction(12), effect_id="new",
+        )
+        self.assertEqual(allowed_pa.code.value, "Accepted")
+        self.assertEqual(allowed_pd.code.value, allowed_pa.code.value)
+        self.assertEqual(_p_a_w05_state(allowed_pa.book), _p_d_w05_state(allowed_pd.state))
+
+
+    def test_p_d_w05_replaced_old_generation_is_stale_at_dispatch(self):
+        names = frozenset(("cpu", "vdp"))
+        pa_context = ADeadlineContext(
+            (
+                AParticipant("cpu", Fraction(0), Fraction(100)),
+                AParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        pd_context = AgendaContext(
+            (
+                AgendaParticipant("cpu", Fraction(0), Fraction(100)),
+                AgendaParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        pa = p_a_publish_deadline(
+            ADeadlineBook(), pa_context, owner="cpu",
+            identity="w05-stale-dispatch", generation=0,
+            at_common=Fraction(10), effect_id="old",
+        )
+        pd = p_d_publish_with_context(
+            AgendaState(), pd_context, owner="cpu",
+            identity="w05-stale-dispatch", generation=0,
+            at_common=Fraction(10), effect_id="old",
+        )
+        pa_cancel = p_a_cancel_deadline(
+            pa.book, pa_context, owner="cpu", identity="w05-stale-dispatch",
+            generation=0, at_common=Fraction(4),
+        )
+        pd_cancel = p_d_request_cancel(
+            pd.state, pd_context, owner="cpu", identity="w05-stale-dispatch",
+            generation=0, at_common=Fraction(4),
+        )
+        pa_arbitrated = p_a_arbitrate_cancellations(pa_cancel.book)
+        pd_arbitrated = p_d_arbitrate_cancellations(pd_cancel.state)
+        self.assertEqual(pa_arbitrated.code.value, "Accepted")
+        self.assertEqual(pd_arbitrated.code.value, pa_arbitrated.code.value)
+        pa_next = p_a_publish_deadline(
+            pa_arbitrated.book, pa_context, owner="cpu",
+            identity="w05-stale-dispatch", generation=1,
+            at_common=Fraction(12), effect_id="new",
+        )
+        pd_next = p_d_publish_with_context(
+            pd_arbitrated.state, pd_context, owner="cpu",
+            identity="w05-stale-dispatch", generation=1,
+            at_common=Fraction(12), effect_id="new",
+        )
+        self.assertEqual(pa_next.code.value, "Accepted")
+        self.assertEqual(pd_next.code.value, pa_next.code.value)
+        pa_closed = p_a_close_watermark(pa_next.book, Fraction(12))
+        pd_closed = p_d_close_watermark(pd_next.state, Fraction(12), pd_context)
+        self.assertEqual(pa_closed.claimed, pd_closed.claimed)
+
+        stale_pa = p_a_dispatch_deadline(
+            pa_closed.book, identity="w05-stale-dispatch", generation=0,
+        )
+        stale_pd = p_d_dispatch_event(
+            pd_closed.state, "w05-stale-dispatch", 0,
+        )
+        self.assertEqual(stale_pa.code.value, "StaleIgnored")
+        self.assertEqual(stale_pd.code.value, stale_pa.code.value)
+        self.assertEqual(stale_pa.book, pa_closed.book)
+        self.assertEqual(stale_pd.state, pd_closed.state)
+
+        current_pa = p_a_dispatch_deadline(
+            stale_pa.book, identity="w05-stale-dispatch", generation=1,
+        )
+        current_pd = p_d_dispatch_event(
+            stale_pd.state, "w05-stale-dispatch", 1,
+        )
+        self.assertEqual(current_pa.code.value, "Accepted")
+        self.assertEqual(current_pd.code.value, current_pa.code.value)
+        self.assertEqual(_p_a_w05_state(current_pa.book), _p_d_w05_state(current_pd.state))
 
 
     def test_p_d_w05_generation_replacement_preserves_successor_microstep(self):
