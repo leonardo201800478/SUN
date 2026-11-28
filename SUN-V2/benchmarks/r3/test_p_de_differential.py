@@ -1538,6 +1538,55 @@ class CandidateDifferentialTests(unittest.TestCase):
         self.assertEqual(_p_a_w05_state(current_pa.book), _p_d_w05_state(current_pd.state))
 
 
+    def test_p_d_w05_dispatch_and_completion_reject_invalid_descriptors_atomically(self):
+        names = frozenset(("cpu", "vdp"))
+        pa_context = ADeadlineContext(
+            (
+                AParticipant("cpu", Fraction(0), Fraction(100)),
+                AParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        pd_context = AgendaContext(
+            (
+                AgendaParticipant("cpu", Fraction(0), Fraction(100)),
+                AgendaParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        pa = p_a_publish_deadline(
+            ADeadlineBook(), pa_context, owner="cpu",
+            identity="w05-invalid-lifecycle-descriptor", generation=0,
+            at_common=Fraction(10), effect_id="effect",
+        )
+        pd = p_d_publish_with_context(
+            AgendaState(), pd_context, owner="cpu",
+            identity="w05-invalid-lifecycle-descriptor", generation=0,
+            at_common=Fraction(10), effect_id="effect",
+        )
+        cases = (
+            ("blank identity", {"identity": " ", "generation": 0}),
+            ("non-string identity", {"identity": None, "generation": 0}),
+            ("boolean generation", {"identity": "w05-invalid-lifecycle-descriptor", "generation": True}),
+            ("negative generation", {"identity": "w05-invalid-lifecycle-descriptor", "generation": -1}),
+        )
+        for label, descriptor in cases:
+            with self.subTest(case=label):
+                pa_dispatch = p_a_dispatch_deadline(pa.book, **descriptor)
+                pd_dispatch = p_d_dispatch_event(pd.state, **descriptor)
+                self.assertEqual(pa_dispatch.code.value, "InvalidInput")
+                self.assertEqual(pd_dispatch.code.value, pa_dispatch.code.value)
+                self.assertEqual(pa_dispatch.book, pa.book)
+                self.assertEqual(pd_dispatch.state, pd.state)
+
+                pa_complete = p_a_complete_deadline(pa.book, **descriptor)
+                pd_complete = p_d_complete(pd.state, **descriptor)
+                self.assertEqual(pa_complete.code.value, "InvalidInput")
+                self.assertEqual(pd_complete.code.value, pa_complete.code.value)
+                self.assertEqual(pa_complete.book, pa.book)
+                self.assertEqual(pd_complete.state, pd.state)
+
+
     def test_p_d_w05_generation_replacement_preserves_successor_microstep(self):
         names = frozenset(("cpu", "vdp"))
         pa_context = ADeadlineContext(
