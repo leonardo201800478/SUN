@@ -794,6 +794,10 @@ def claim_next(state: AgendaState, target_common: int | Fraction) -> AgendaResul
     target = Fraction(target_common)
     if state.watermark_common is not None and target < state.watermark_common:
         return AgendaResult(state, AgendaCode.LATE_INPUT, detail="target is behind the closed watermark")
+    for request in state.pending_cancellations:
+        event = _find(state, request.identity, request.generation)
+        if event is not None and event.at_common <= target:
+            return AgendaResult(state, AgendaCode.BLOCKED, event, "pending cancellation must be arbitrated before claim")
     if state.heap and target < state.heap[0][0]:
         return AgendaResult(state, AgendaCode.BLOCKED, detail="no event due at target")
     if not state.heap or state.heap[0][0] > target:
@@ -834,8 +838,12 @@ def claim_next(state: AgendaState, target_common: int | Fraction) -> AgendaResul
     return AgendaResult(updated, AgendaCode.CLAIMED, claimed)
 
 
-def close_watermark(state: AgendaState, target_common: int | Fraction) -> AgendaResult:
-    """Atomically claim every due event and close one exact common-time frontier."""
+def close_watermark(
+    state: AgendaState,
+    target_common: int | Fraction,
+    context: AgendaContext | None = None,
+) -> AgendaResult:
+    """Atomically claim due events and close one exact, optionally bounded frontier."""
     invalid = _validate(state)
     if invalid is not None:
         return AgendaResult(state, AgendaCode.INVALID_INPUT, detail=invalid)
@@ -844,6 +852,18 @@ def close_watermark(state: AgendaState, target_common: int | Fraction) -> Agenda
     target = Fraction(target_common)
     if state.watermark_common is not None and target < state.watermark_common:
         return AgendaResult(state, AgendaCode.LATE_INPUT, detail="watermark cannot regress")
+    if context is not None:
+        code, detail, _, frontier, safe = _context_view(state, context)
+        if code is not None:
+            return AgendaResult(state, code, detail=detail)
+        if target < frontier:
+            return AgendaResult(state, AgendaCode.LATE_INPUT, detail="watermark is behind participant progress")
+        if target > safe:
+            return AgendaResult(state, AgendaCode.BLOCKED, detail="watermark exceeds the global safe horizon")
+    for request in state.pending_cancellations:
+        event = _find(state, request.identity, request.generation)
+        if event is not None and event.at_common <= target:
+            return AgendaResult(state, AgendaCode.BLOCKED, event, "pending cancellation must be arbitrated before watermark close")
 
     heap = list(state.heap)
     by_key = {
