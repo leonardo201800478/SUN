@@ -26,6 +26,7 @@ from p_a_deadline_lifecycle import (
     cancel_deadline as p_a_cancel_deadline,
     close_watermark as p_a_close_watermark,
     publish_deadline as p_a_publish_deadline,
+    replace_deadline as p_a_replace_deadline,
 )
 from p_a_instruction_catchup import AObligation, AParticipant
 
@@ -43,6 +44,7 @@ from p_d_discrete_agenda import (
     publish as p_d_publish,
     publish_with_context as p_d_publish_with_context,
     request_cancel as p_d_request_cancel,
+    replace_with_context as p_d_replace_with_context,
 )
 from p_e_sync_on_demand import (
     PairRelation as SyncPairRelation,
@@ -694,6 +696,96 @@ class CandidateDifferentialTests(unittest.TestCase):
                 self.assertEqual(pa_cancel.code.value, expected_code)
                 self.assertEqual(pd_cancel.code.value, expected_code)
                 self.assertEqual(_p_a_w05_state(pa_cancel.book), _p_d_w05_state(pd_cancel.state))
+
+    def test_p_d_w05_generation_replacement_is_atomic_and_fences_old_generation(self):
+        names = frozenset(("cpu", "vdp"))
+        pa_context = ADeadlineContext(
+            (
+                AParticipant("cpu", Fraction(0), Fraction(100), Fraction(1), Fraction(0)),
+                AParticipant("vdp", Fraction(0), Fraction(100), Fraction(1), Fraction(0)),
+            ),
+            names,
+        )
+        pd_context = AgendaContext(
+            (
+                AgendaParticipant("cpu", Fraction(0), Fraction(100)),
+                AgendaParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+
+        pa_first = p_a_publish_deadline(
+            ADeadlineBook(), pa_context, owner="cpu", identity="w05-replace",
+            generation=0, at_common=Fraction(10), effect_id="old-effect",
+        )
+        pd_first = p_d_publish_with_context(
+            AgendaState(), pd_context, owner="cpu", identity="w05-replace",
+            generation=0, at_common=Fraction(10), effect_id="old-effect",
+        )
+        self.assertEqual(pa_first.code.value, "Accepted")
+        self.assertEqual(pd_first.code.value, pa_first.code.value)
+        self.assertEqual(_p_a_w05_state(pa_first.book), _p_d_w05_state(pd_first.state))
+
+        pa = p_a_replace_deadline(
+            pa_first.book, pa_context, owner="cpu", identity="w05-replace",
+            generation=0, cancel_at=Fraction(5), new_generation=1,
+            new_at_common=Fraction(20), new_effect_id="new-effect",
+        )
+        pd = p_d_replace_with_context(
+            pd_first.state, pd_context, owner="cpu", identity="w05-replace",
+            generation=0, cancel_at=Fraction(5), new_generation=1,
+            new_at_common=Fraction(20), new_effect_id="new-effect",
+        )
+        self.assertEqual(pa.code.value, "Accepted")
+        self.assertEqual(pd.code.value, pa.code.value)
+        self.assertEqual(_p_a_w05_state(pa.book), _p_d_w05_state(pd.state))
+        self.assertEqual(
+            tuple(item.status.value for item in pa.book.deadlines),
+            ("Cancelled", "Scheduled"),
+        )
+        self.assertEqual(
+            tuple(item.status.value for item in pd.state.events),
+            ("Cancelled", "Scheduled"),
+        )
+        self.assertEqual(pd.state.heap, ((Fraction(20), "w05-replace", 1),))
+
+        for cancel_at, new_at, expected_code in (
+            (Fraction(5), Fraction(4), "LateInput"),
+            (Fraction(5), Fraction(5), "IndeterminateCausalOrder"),
+        ):
+            with self.subTest(cancel_at=cancel_at, new_at=new_at):
+                pa_result = p_a_replace_deadline(
+                    pa_first.book, pa_context, owner="cpu", identity="w05-replace",
+                    generation=0, cancel_at=cancel_at, new_generation=1,
+                    new_at_common=new_at, new_effect_id="new-effect",
+                )
+                pd_result = p_d_replace_with_context(
+                    pd_first.state, pd_context, owner="cpu", identity="w05-replace",
+                    generation=0, cancel_at=cancel_at, new_generation=1,
+                    new_at_common=new_at, new_effect_id="new-effect",
+                )
+                self.assertEqual(pa_result.code.value, expected_code)
+                self.assertEqual(pd_result.code.value, pa_result.code.value)
+                self.assertEqual(_p_a_w05_state(pa_result.book), _p_d_w05_state(pd_result.state))
+                self.assertEqual(pa_result.book, pa_first.book)
+                self.assertEqual(pd_result.state, pd_first.state)
+
+        pa_invalid = p_a_replace_deadline(
+            pa_first.book, pa_context, owner="cpu", identity="w05-replace",
+            generation=0, cancel_at=Fraction(5), new_generation=0,
+            new_at_common=Fraction(20), new_effect_id="new-effect",
+        )
+        pd_invalid = p_d_replace_with_context(
+            pd_first.state, pd_context, owner="cpu", identity="w05-replace",
+            generation=0, cancel_at=Fraction(5), new_generation=0,
+            new_at_common=Fraction(20), new_effect_id="new-effect",
+        )
+        self.assertEqual(pa_invalid.code.value, "InvalidInput")
+        self.assertEqual(pd_invalid.code.value, pa_invalid.code.value)
+        self.assertEqual(_p_a_w05_state(pa_invalid.book), _p_d_w05_state(pd_invalid.state))
+        self.assertEqual(pa_invalid.book, pa_first.book)
+        self.assertEqual(pd_invalid.state, pd_first.state)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
