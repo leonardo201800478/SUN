@@ -120,7 +120,11 @@ class CandidateSnapshotTests(unittest.TestCase):
             make_replay_event(5, "close", {"target_common": 10}),
             make_replay_event(4, "arbitrate", {}),
         )
-        replayed = replay_from_snapshot(artifact, events, apply=apply)
+        replayed = replay_from_snapshot(
+            artifact, events, expected_candidate="P-D",
+            expected_profile="SMS-NTSC", expected_version="P-D-R3-W09-1",
+            apply=apply,
+        )
         self.assertEqual(replayed.code, SnapshotCode.OK)
         self.assertEqual(replayed.input_cursor, 5)
         self.assertEqual(replayed.state, expected)
@@ -181,7 +185,8 @@ class CandidateSnapshotTests(unittest.TestCase):
                 2, "synchronize",
                 {"requested_domains": ["vdp"], "target_common": 4},
             ),),
-            apply=apply,
+            expected_candidate="P-E", expected_profile="SMS-NTSC",
+            expected_version="P-E-R3-W09-1", apply=apply,
         )
         self.assertEqual(expected.code, SyncCode.REACHED)
         self.assertEqual(replayed.code, SnapshotCode.OK)
@@ -211,6 +216,24 @@ class CandidateSnapshotTests(unittest.TestCase):
         self.assertEqual(wrong_profile.code, SnapshotCode.INCOMPATIBLE)
         self.assertIs(wrong_profile.active_state, active)
         self.assertIsNone(wrong_profile.restored_state)
+
+    def test_replay_rejects_profile_or_candidate_mismatch_before_apply(self):
+        state = pending_pd_state()
+        artifact = capture(
+            "P-D", state, profile="SMS-NTSC",
+            model_version="P-D-R3-W09-1", input_cursor=3,
+        ).artifact
+        applied = []
+        result = replay_from_snapshot(
+            artifact, (make_replay_event(4, "noop", {}),),
+            expected_candidate="P-D", expected_profile="SG-1000",
+            expected_version="P-D-R3-W09-1",
+            apply=lambda current, operation, arguments: applied.append(operation) or current,
+        )
+        self.assertEqual(result.code, SnapshotCode.INCOMPATIBLE)
+        self.assertEqual(result.state, state)
+        self.assertEqual(result.input_cursor, 3)
+        self.assertEqual(applied, [])
 
     def test_replay_sequence_gap_is_rejected_without_partial_apply(self):
         state = pending_pd_state()
