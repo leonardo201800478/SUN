@@ -18,7 +18,7 @@ from r3_transaction_core import (
     MarkerKind, TransactionBook, TxCode, TxSpec, TxState, _validate_book,
     _validate_spec, commit_effect as commit_tx_marker,
     fail as fail_tx, reach_next_marker, recover as recover_tx,
-    start as start_tx, submit as submit_tx,
+    sample_marker as sample_tx_marker, start as start_tx, submit as submit_tx,
 )
 
 
@@ -52,6 +52,7 @@ class BridgeResult:
     state: TransactionResourceState
     detail: str = ""
     recovery_audit: RecoveryBoundaryAudit | None = None
+    sampled_value: str | None = None
 
 
 def _validate_state(state: object) -> str | None:
@@ -215,6 +216,28 @@ def reach_transaction_marker(
     if result.code is not TxCode.OK:
         return BridgeResult(_tx_code(result.code), state, result.detail)
     return BridgeResult(BridgeCode.OK, replace(state, book=result.book))
+
+
+def sample_transaction_marker(
+    state: TransactionResourceState, marker_id: str, sampled_value: str
+) -> BridgeResult:
+    """Capture a SAMPLE marker in TransactionBook; ResourceLedger is unchanged."""
+    invalid = _validate_state(state)
+    if invalid is not None or not state.book.transactions:
+        return BridgeResult(BridgeCode.INVALID_INPUT, state, invalid or "no transaction")
+    tx = state.book.transactions[0]
+    sampled = sample_tx_marker(
+        state.book, tx.spec.identity, marker_id, sampled_value
+    )
+    if sampled.code is not TxCode.OK:
+        return BridgeResult(_tx_code(sampled.code), state, sampled.detail)
+    updated = replace(state, book=sampled.book)
+    invalid = _validate_state(updated)
+    if invalid is not None:
+        return BridgeResult(BridgeCode.INVALID_INPUT, state, invalid)
+    return BridgeResult(
+        BridgeCode.OK, updated, sampled_value=sampled.value
+    )
 
 
 def commit_marker_with_resource(
