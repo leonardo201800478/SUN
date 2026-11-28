@@ -18,7 +18,8 @@ from pd_r2_snapshot_projection import (  # noqa: E402
 )
 from snapshot_reference import (  # noqa: E402
     AckCommit, AckPresence, DeadlineRecord, DeadlineState, InterruptRecord, MachineState,
-    SnapshotCode, capture as r2_capture, restore as r2_restore,
+    SnapshotArtifact as R2SnapshotArtifact, SnapshotCode, capture as r2_capture,
+    restore as r2_restore,
 )
 
 
@@ -204,6 +205,86 @@ class PdR2SnapshotProjectionTests(unittest.TestCase):
         self.assertIs(captured.active_state, state)
         self.assertIsNone(captured.artifact)
         self.assertIsNone(captured.restored_state)
+
+
+    def test_r2_restore_rejects_forged_unknown_int_ack_artifact_atomically(self):
+        active = MachineState(
+            profile="SMS-NTSC",
+            model_version="R1-0.3.18",
+            domains=(),
+            watermark=Fraction(3),
+            deadlines=(),
+            transactions=(),
+            interrupts=InterruptRecord(),
+            input_cursor=2,
+        )
+        unsupported_cut = MachineState(
+            profile="SMS-NTSC",
+            model_version="R1-0.3.18",
+            domains=(),
+            watermark=Fraction(9),
+            deadlines=(),
+            transactions=(),
+            interrupts=InterruptRecord(
+                acknowledge_active=True,
+                device_effect_presence=AckPresence.UNKNOWN,
+                device_effect_commit=AckCommit.UNKNOWN,
+            ),
+            input_cursor=8,
+        )
+        forged_artifact = R2SnapshotArtifact(
+            profile=unsupported_cut.profile,
+            model_version=unsupported_cut.model_version,
+            state=unsupported_cut,
+        )
+        restored = r2_restore(
+            active,
+            forged_artifact,
+            expected_profile="SMS-NTSC",
+            expected_version="R1-0.3.18",
+        )
+        self.assertEqual(restored.code, SnapshotCode.INCOMPATIBLE)
+        self.assertIs(restored.active_state, active)
+        self.assertIsNone(restored.artifact)
+        self.assertIsNone(restored.restored_state)
+        self.assertEqual(active.watermark, Fraction(3))
+        self.assertEqual(active.input_cursor, 2)
+
+    def test_projection_roundtrip_preserves_each_shared_deadline_coordinate(self):
+        source = candidate_state()
+        result = project_pd_shared_state(source)
+        self.assertEqual(result.code, ProjectionCode.OK)
+        projection = result.projection
+        state = MachineState(
+            profile="SMS-NTSC",
+            model_version="R1-0.3.18",
+            domains=(),
+            watermark=projection.watermark,
+            deadlines=projection.deadlines,
+            transactions=(),
+            interrupts=InterruptRecord(),
+            input_cursor=0,
+        )
+        captured = r2_capture(state)
+        self.assertEqual(captured.code, SnapshotCode.OK)
+        restored = r2_restore(
+            state,
+            captured.artifact,
+            expected_profile="SMS-NTSC",
+            expected_version="R1-0.3.18",
+        )
+        self.assertEqual(restored.code, SnapshotCode.OK)
+        projected = project_pd_shared_state(source).projection
+        actual = restored.restored_state
+        self.assertEqual(actual.watermark, projected.watermark)
+        self.assertEqual(
+            tuple((d.identity, d.generation, d.at_common, d.state)
+                  for d in actual.deadlines),
+            tuple((d.identity, d.generation, d.at_common, d.state)
+                  for d in projected.deadlines),
+        )
+        self.assertTrue(all(not d.committed_effects and not d.pending_effects
+                            for d in actual.deadlines))
 
 
 if __name__ == "__main__":
