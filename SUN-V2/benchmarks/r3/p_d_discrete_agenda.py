@@ -412,7 +412,8 @@ def publish(
     heapq.heappush(heap, _key(event))
     updated = AgendaState(
         tuple(heap), tuple(events), state.constraints, state.max_events,
-        state.watermark_common,
+        state.watermark_common, state.pending_cancellations,
+        state.max_microsteps,
     )
     return AgendaResult(updated, AgendaCode.ACCEPTED, event)
 
@@ -440,7 +441,8 @@ def cancel(state: AgendaState, identity: str, generation: int) -> AgendaResult:
     heapq.heapify(heap)
     updated = AgendaState(
         tuple(heap), updated.events, updated.constraints, updated.max_events,
-        updated.watermark_common,
+        updated.watermark_common, updated.pending_cancellations,
+        updated.max_microsteps,
     )
     return AgendaResult(updated, AgendaCode.CANCELLED, updated_event)
 
@@ -573,7 +575,8 @@ def claim_next(state: AgendaState, target_common: int | Fraction) -> AgendaResul
     )
     updated = AgendaState(
         tuple(heap), events, state.constraints, state.max_events,
-        state.watermark_common,
+        state.watermark_common, state.pending_cancellations,
+        state.max_microsteps,
     )
     return AgendaResult(updated, AgendaCode.CLAIMED, claimed)
 
@@ -633,7 +636,8 @@ def close_watermark(state: AgendaState, target_common: int | Fraction) -> Agenda
         for item in state.events
     )
     updated = AgendaState(
-        tuple(heap), events, state.constraints, state.max_events, target
+        tuple(heap), events, state.constraints, state.max_events, target,
+        state.pending_cancellations, state.max_microsteps,
     )
     return AgendaResult(
         updated, AgendaCode.ACCEPTED,
