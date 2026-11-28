@@ -68,6 +68,14 @@ def digest(result) -> str:
             for item in state.pending
         ),
         state.resolved,
+        tuple(
+            (item.identity, item.owner, item.microstep, item.commutative)
+            for item in state.future
+        ),
+        tuple(
+            (item.first_id, item.second_id, item.relation.value)
+            for item in state.relations
+        ),
     )
     return hashlib.sha256(repr(payload).encode("utf-8")).hexdigest()
 
