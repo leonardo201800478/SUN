@@ -194,7 +194,7 @@ These items remain review findings/assumptions for R4. They are not reasons to i
 
 ## Current continuation status — W05 expanded differential and W09 candidate snapshots
 
-**Validated code HEAD:** `8bc73d4888203a1866d58e3a44cf0a9854f0f7c9`.  
+**Validated code HEAD:** `8bc73d4888203a1866d58e3a44cf0a9854f0f7c9`.
 **CI #11222:** [run 46157464321](https://github.com/leonardo201800478/SUN/actions/runs/46157464321) — **SUCCESS**.
 
 This section supersedes earlier statements above that P-D/P-A differential coverage was limited to W01/W02 and that P-D/P-E W09 snapshot support was not implemented.
