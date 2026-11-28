@@ -6,6 +6,7 @@ advanced. Time coordinates are exact and UNKNOWN event pairs remain unresolved.
 """
 from __future__ import annotations
 
+from bisect import bisect_right
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import Enum
@@ -81,6 +82,9 @@ class SyncState:
     _transitions_by_owner: Mapping[str, tuple[SyncTransition, ...]] = field(
         default_factory=lambda: MappingProxyType({}), repr=False, compare=False
     )
+    _transition_times_by_owner: Mapping[str, tuple[Fraction, ...]] = field(
+        default_factory=lambda: MappingProxyType({}), repr=False, compare=False
+    )
     _relation_index: Mapping[frozenset[str], SyncConstraint] = field(
         default_factory=lambda: MappingProxyType({}), repr=False, compare=False
     )
@@ -98,10 +102,21 @@ class SyncState:
             for item in self.transitions:
                 if isinstance(item, SyncTransition) and isinstance(item.owner, str):
                     grouped.setdefault(item.owner, []).append(item)
+            ordered = {
+                key: tuple(sorted(value, key=lambda item: (item.at_common, item.identity)))
+                for key, value in grouped.items()
+            }
+            object.__setattr__(
+                self, "_transitions_by_owner", MappingProxyType(ordered)
+            )
+        if not self._transition_times_by_owner and self._transitions_by_owner:
             object.__setattr__(
                 self,
-                "_transitions_by_owner",
-                MappingProxyType({key: tuple(value) for key, value in grouped.items()}),
+                "_transition_times_by_owner",
+                MappingProxyType({
+                    key: tuple(item.at_common for item in value)
+                    for key, value in self._transitions_by_owner.items()
+                }),
             )
         if not self._relation_index and self.constraints:
             relations = {
@@ -287,14 +302,12 @@ def _closure(
     queue: list[SyncTransition] = []
 
     def include_owner(owner: str) -> None:
-        for transition in sorted(
-            state._transitions_by_owner.get(owner, ()),
-            key=lambda item: (item.at_common, item.identity),
-        ):
-            if (
-                transition.at_common <= target
-                and transition.identity not in selected_transitions
-            ):
+        transitions = state._transitions_by_owner.get(owner, ())
+        times = state._transition_times_by_owner.get(owner, ())
+        due_count = bisect_right(times, target)
+        for index in range(due_count):
+            transition = transitions[index]
+            if transition.identity not in selected_transitions:
                 selected_transitions.add(transition.identity)
                 queue.append(transition)
 
@@ -458,6 +471,7 @@ def synchronize(
         tuple(observed),
         state._transition_by_id,
         state._transitions_by_owner,
+        state._transition_times_by_owner,
         state._relation_index,
         True,
     )
