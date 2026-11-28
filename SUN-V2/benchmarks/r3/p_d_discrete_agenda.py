@@ -760,6 +760,88 @@ def arbitrate_cancellations(state: AgendaState) -> AgendaResult:
     return AgendaResult(updated, AgendaCode.ACCEPTED, detail="pending cancellations arbitrated")
 
 
+def replace_with_context(
+    state: AgendaState,
+    context: AgendaContext,
+    *,
+    owner: str,
+    identity: str,
+    generation: int,
+    cancel_at: int | Fraction,
+    new_generation: int,
+    new_at_common: int | Fraction,
+    new_effect_id: str,
+) -> AgendaResult:
+    """Atomically cancel/arbitrate an old generation and publish its successor.
+
+    The operation mirrors the P-A/R2 replacement contract: cancellation must
+    be admissible and arbitrated before the replacement is published. Any
+    failure returns the original state, so a rejected replacement cannot
+    leave the old generation cancelled.
+    """
+    invalid = _validate(state)
+    if invalid is not None:
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail=invalid)
+    if (
+        not isinstance(owner, str) or not owner.strip()
+        or not isinstance(identity, str) or not identity.strip()
+        or type(generation) is not int or generation < 0
+        or type(new_generation) is not int or new_generation <= generation
+        or not _exact(cancel_at) or not _exact(new_at_common)
+        or not isinstance(new_effect_id, str) or not new_effect_id.strip()
+    ):
+        return AgendaResult(
+            state, AgendaCode.INVALID_INPUT,
+            detail="invalid replacement descriptor",
+        )
+
+    prior = tuple(item for item in state.events if item.identity == identity)
+    if prior and new_generation <= max(item.generation for item in prior):
+        return AgendaResult(
+            state, AgendaCode.INVALID_INPUT,
+            detail="replacement generation must increase monotonically",
+        )
+
+    cancelled = request_cancel(
+        state, context, owner=owner, identity=identity,
+        generation=generation, at_common=cancel_at,
+    )
+    if cancelled.code is not AgendaCode.ACCEPTED:
+        return AgendaResult(
+            state, cancelled.code, cancelled.event, cancelled.detail,
+        )
+
+    arbitrated = arbitrate_cancellations(cancelled.state)
+    if arbitrated.code is not AgendaCode.ACCEPTED:
+        return AgendaResult(state, arbitrated.code, detail=arbitrated.detail)
+
+    published = publish_with_context(
+        arbitrated.state, context, owner=owner, identity=identity,
+        generation=new_generation, at_common=new_at_common,
+        effect_id=new_effect_id,
+    )
+    if published.code is not AgendaCode.ACCEPTED:
+        return AgendaResult(
+            state, published.code,
+            detail=f"replacement rejected atomically: {published.detail}",
+        )
+
+    if Fraction(new_at_common) < Fraction(cancel_at):
+        return AgendaResult(
+            state, AgendaCode.LATE_INPUT,
+            detail="replacement deadline precedes replacement operation",
+        )
+    if Fraction(new_at_common) == Fraction(cancel_at):
+        return AgendaResult(
+            state, AgendaCode.INDETERMINATE,
+            detail="replacement deadline coincides with cancellation without explicit causal relation",
+        )
+    return AgendaResult(
+        published.state, AgendaCode.ACCEPTED, published.event,
+        "old generation cancelled and replacement published atomically",
+    )
+
+
 def cancel(state: AgendaState, identity: str, generation: int) -> AgendaResult:
     """Cancel only a scheduled generation; claimed effects are irreversible."""
     invalid = _validate(state)
