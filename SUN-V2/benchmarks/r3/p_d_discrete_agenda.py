@@ -771,6 +771,7 @@ def replace_with_context(
     new_generation: int,
     new_at_common: int | Fraction,
     new_effect_id: str,
+    microstep: bool = False,
 ) -> AgendaResult:
     """Atomically cancel/arbitrate an old generation and publish its successor.
 
@@ -789,6 +790,7 @@ def replace_with_context(
         or type(new_generation) is not int or new_generation <= generation
         or not _exact(cancel_at) or not _exact(new_at_common)
         or not isinstance(new_effect_id, str) or not new_effect_id.strip()
+        or not isinstance(microstep, bool)
     ):
         return AgendaResult(
             state, AgendaCode.INVALID_INPUT,
@@ -818,7 +820,7 @@ def replace_with_context(
     published = publish_with_context(
         arbitrated.state, context, owner=owner, identity=identity,
         generation=new_generation, at_common=new_at_common,
-        effect_id=new_effect_id,
+        effect_id=new_effect_id, microstep=1 if microstep else 0,
     )
     if published.code is not AgendaCode.ACCEPTED:
         return AgendaResult(
