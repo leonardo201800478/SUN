@@ -550,6 +550,11 @@ def publish(
     prior = [item for item in state.events if item.identity == identity]
     if prior and generation <= max(item.generation for item in prior):
         return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="generation must increase")
+    if any(item.status is EventStatus.CANCEL_PENDING for item in prior):
+        return AgendaResult(
+            state, AgendaCode.INVALID_INPUT,
+            detail="prior generation cancellation must be arbitrated before replacement",
+        )
     if any(item.status is EventStatus.CLAIMED for item in prior):
         return AgendaResult(state, AgendaCode.BLOCKED, detail="claimed generation must be completed before replacement")
     events = list(state.events)
