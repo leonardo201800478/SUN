@@ -34,6 +34,7 @@ from p_d_discrete_agenda import (
 )
 from p_e_sync_on_demand import (
     PairRelation as SyncPairRelation,
+    SyncConstraint,
     SyncDomain,
     SyncState,
     SyncTransition,
