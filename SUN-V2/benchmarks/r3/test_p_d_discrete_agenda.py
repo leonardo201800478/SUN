@@ -353,23 +353,29 @@ class DiscreteAgendaTests(unittest.TestCase):
         context_at_7 = AgendaContext(
             context.participants, context.expected_participants, Fraction(7)
         )
-        blocked_at_cancel = close_watermark(
+        # W may pass the admitted cancellation coordinate C while still
+        # remaining before its deadline D. Arbitration is required before W
+        # crosses D, not before W crosses C.
+        past_cancel = close_watermark(
             before_cancel.state, Fraction(8), context_at_7
         )
-        self.assertEqual(blocked_at_cancel.code, AgendaCode.BLOCKED)
-        self.assertIs(blocked_at_cancel.state, before_cancel.state)
+        self.assertEqual(past_cancel.code, AgendaCode.ACCEPTED)
+        self.assertEqual(past_cancel.state.watermark_common, Fraction(8))
+        context_at_8 = AgendaContext(
+            context.participants, context.expected_participants, Fraction(8)
+        )
 
-        blocked = close_watermark(pending.state, Fraction(10), context)
+        blocked = close_watermark(past_cancel.state, Fraction(10), context_at_8)
         self.assertEqual(blocked.code, AgendaCode.BLOCKED)
-        self.assertIs(blocked.state, pending.state)
+        self.assertIs(blocked.state, past_cancel.state)
 
-        arbitrated = arbitrate_cancellations(pending.state)
+        arbitrated = arbitrate_cancellations(past_cancel.state)
         self.assertEqual(arbitrated.code, AgendaCode.ACCEPTED)
         self.assertEqual(
             next(item for item in arbitrated.state.events if item.identity == "deadline").status,
             EventStatus.CANCELLED,
         )
-        closed = close_watermark(arbitrated.state, Fraction(10), context)
+        closed = close_watermark(arbitrated.state, Fraction(10), context_at_8)
         self.assertEqual(closed.code, AgendaCode.ACCEPTED)
         self.assertEqual(closed.state.watermark_common, Fraction(10))
 
