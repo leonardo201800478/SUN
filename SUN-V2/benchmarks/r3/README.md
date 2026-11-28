@@ -241,3 +241,27 @@ The follow-up CI attempt exposed an environment compatibility issue before tests
 - W09 fixtures with Scheduled deadlines were moved from D=W=8 to D=9, preserving the valid round-trip scenario under the closed-watermark invariant.
 
 **Limits unchanged:** W06 physical evidence remains UNKNOWN; W07 physical B/C remains BLOCKED; the P-A microstep path still has an explicit P-A/R2 divergence and does not establish physical pairwise causality; P-A has no closeout; P-D/P-E remain NOT RUN/BLOCKED; R3 remains in progress; R4/R5 remain pending. No production CHRONOS/V2 code, SMS hardware validation, or 60 FPS claim is covered by this CI.
+
+
+## P-A microstep pairwise adjudication — CI #11111
+
+**Validated HEAD:** `226a852f7d2b132ce2d585e921aaeb79fc73d711`. **CI #11111:** [run 46100522893](https://github.com/leonardo201800478/SUN/actions/runs/46100522893) — **SUCCESS**.
+
+- R3 disposable suite: **206/206 PASS Linux and 206/206 PASS Windows**, Python 3.14.10 on both.
+- Corpus emitter: **184 tests PASS** on both systems.
+- Canonical corpus: **119 fixtures / 1,483 cuts** (1,472 differential + 11 property); trace digest `ab5e146eda37e8292159cc5440beca615c5b511383e3807b24adbacbb490056b`.
+- Replayable corpus: **25 fixtures / 134 operations-cuts**; W06 and W07 divergences preserved; digest `6189653bb3aa18fc5805f7dd1ae9708ea31b349d03da7ea9fcc906350cbcfbb6`.
+- Canonical and replayable artifacts byte-identical Linux/Windows. R2 independent Linux and R2 Python Windows PASS; all seven applicable P-A synthetic matrices PASS; workflow validation, documentation hygiene, change-impact classification and Rust quality supervisor PASS.
+- Windows benchmark CPU-time samples remain `SKIPPED_COARSE_RESOLUTION`; hardware/runtime/desktop and unrelated subsystem Rust jobs remain SKIPPED, not PASS.
+
+### P-A microstep model correction
+
+The P-A `p_a_microsteps.py` candidate no longer imposes a global barrier based solely on numeric microstep level. It now stores explicit pairwise relations (`FIRST_CAUSES_SECOND`, `SECOND_CAUSES_FIRST`, `COMMUTATIVE`, `UNKNOWN`) and adjudicates every pending pair:
+- `UNKNOWN` -> `IndeterminateCausalOrder`, no mutation.
+- An explicit predecessor -> `Blocked`.
+- An explicit causal successor or pairwise commutativity -> progress is permitted.
+- Unary `commutative=True` metadata on both obligations does not establish pairwise commutativity.
+
+The W07 replayable counterexample now preserves the P-A/R2 divergence as P-A `IndeterminateCausalOrder` versus R2 `Advanced` for B/C with no pairwise relation. Separate tests prove that explicit commutativity permits later-microstep overtaking and explicit B-before-C causality blocks it. The P-A microstep suite has 14 tests; the isolated W07 pairwise-cycle candidate has 22 tests.
+
+**Limits unchanged:** this is a synthetic candidate and does not determine the physical B/C relation. W07 physical B/C remains BLOCKED; W06 physical remains UNKNOWN; P-A has no closeout; P-D/P-E remain NOT RUN/BLOCKED; R3 remains in progress; R4/R5 remain pending. R1 v0.3.18 and the approved R2 executable oracle remain unchanged. No production CHRONOS/V2 code or hardware SMS behavior is validated by this run.
