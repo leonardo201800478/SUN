@@ -185,6 +185,7 @@ def _validate_state(state: object) -> str | None:
             return "invalid domain coordinate"
 
     deadline_keys: set[tuple[str, int]] = set()
+    active_deadline_identities: set[str] = set()
     for deadline in state.deadlines:
         if (
             not isinstance(deadline, PADeadlineRecord)
@@ -194,6 +195,12 @@ def _validate_state(state: object) -> str | None:
         ):
             return "invalid deadline identity/generation"
         deadline_keys.add((deadline.identity, deadline.generation))
+        if deadline.state is PADeadlineState.SCHEDULED:
+            if state.watermark is not None and deadline.at_common <= state.watermark:
+                return "scheduled deadline is not strictly beyond the closed watermark"
+            if deadline.identity in active_deadline_identities:
+                return "multiple active generations for one deadline identity"
+            active_deadline_identities.add(deadline.identity)
         if (
             type(deadline.generation) is not int or deadline.generation < 0
             or not _exact(deadline.at_common)
