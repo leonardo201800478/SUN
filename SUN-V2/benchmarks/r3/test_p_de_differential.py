@@ -1009,5 +1009,71 @@ class CandidateDifferentialTests(unittest.TestCase):
         self.assertEqual(pd_late.state, pd_live_closed.state)
 
 
+    def test_p_d_w05_invalid_cancellation_descriptors_match_p_a_without_mutation(self):
+        names = frozenset(("cpu", "vdp"))
+        pa_context = ADeadlineContext(
+            (
+                AParticipant("cpu", Fraction(0), Fraction(100), Fraction(1), Fraction(0)),
+                AParticipant("vdp", Fraction(0), Fraction(100), Fraction(1), Fraction(0)),
+            ),
+            names,
+        )
+        pd_context = AgendaContext(
+            (
+                AgendaParticipant("cpu", Fraction(0), Fraction(100)),
+                AgendaParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        cases = (
+            ("owner mismatch", {"owner": "vdp"}),
+            ("unknown identity", {"identity": "missing"}),
+            ("boolean generation", {"generation": True}),
+            ("non-exact coordinate", {"at_common": 8.5}),
+            ("negative microstep", {"microstep_level": -1}),
+            ("phase order without evidence", {"phase_order": 1}),
+            ("evidence without phase order", {"phase_evidence": "phase"}),
+        )
+        for label, overrides in cases:
+            with self.subTest(case=label):
+                pa_published = p_a_publish_deadline(
+                    ADeadlineBook(), pa_context, owner="cpu",
+                    identity="w05-invalid-descriptor", generation=0,
+                    at_common=Fraction(10), effect_id="effect",
+                )
+                pd_published = p_d_publish_with_context(
+                    AgendaState(), pd_context, owner="cpu",
+                    identity="w05-invalid-descriptor", generation=0,
+                    at_common=Fraction(10), effect_id="effect",
+                )
+                self.assertEqual(pa_published.code.value, "Accepted")
+                self.assertEqual(pd_published.code.value, "Accepted")
+                self.assertEqual(
+                    _p_a_w05_state(pa_published.book),
+                    _p_d_w05_state(pd_published.state),
+                )
+                arguments = {
+                    "owner": "cpu",
+                    "identity": "w05-invalid-descriptor",
+                    "generation": 0,
+                    "at_common": Fraction(8),
+                }
+                arguments.update(overrides)
+                pa = p_a_cancel_deadline(
+                    pa_published.book, pa_context, **arguments
+                )
+                pd = p_d_request_cancel(
+                    pd_published.state, pd_context, **arguments
+                )
+                self.assertEqual(pa.code.value, "InvalidInput")
+                self.assertEqual(pd.code.value, pa.code.value)
+                self.assertEqual(
+                    _p_a_w05_state(pa.book),
+                    _p_d_w05_state(pd.state),
+                )
+                self.assertEqual(pa.book, pa_published.book)
+                self.assertEqual(pd.state, pd_published.state)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
