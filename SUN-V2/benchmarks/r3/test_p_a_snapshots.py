@@ -262,7 +262,7 @@ class PASnapshotTests(unittest.TestCase):
     def test_cancelled_old_generation_and_new_generation_are_preserved(self):
         records = (
             PADeadlineRecord("old", 1, Fraction(5), PADeadlineState.SUPERSEDED),
-            PADeadlineRecord("new", 2, Fraction(8), PADeadlineState.SCHEDULED),
+            PADeadlineRecord("new", 2, Fraction(9), PADeadlineState.SCHEDULED),
         )
         actual = self.compare_capture(machine(deadlines=records))[0]
         restored = restore(
@@ -295,7 +295,7 @@ class PASnapshotTests(unittest.TestCase):
     def test_same_deadline_identity_with_distinct_generations_round_trips(self):
         records = (
             PADeadlineRecord("irq", 0, Fraction(5), PADeadlineState.CANCELLED),
-            PADeadlineRecord("irq", 1, Fraction(8), PADeadlineState.SCHEDULED),
+            PADeadlineRecord("irq", 1, Fraction(9), PADeadlineState.SCHEDULED),
         )
         source = machine(deadlines=records)
         captured = capture(source)
