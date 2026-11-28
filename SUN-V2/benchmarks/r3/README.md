@@ -301,7 +301,7 @@ This verifies at least one replayable fixture for each W00–W09 category. It do
 
 ## Current P-D/P-E status — CI #11222 (28/11/2026)
 
-**Validated code HEAD:** `8bc73d4888203a1866d58e3a44cf0a9854f0f7c9`.  
+**Validated code HEAD:** `8bc73d4888203a1866d58e3a44cf0a9854f0f7c9`.
 **CI #11222:** [run 46157464321](https://github.com/leonardo201800478/SUN/actions/runs/46157464321) — SUCCESS.
 
 This status supersedes earlier statements in this README that P-D/P-E were NOT RUN/BLOCKED.
