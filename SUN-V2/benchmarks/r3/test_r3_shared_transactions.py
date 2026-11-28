@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import sys
 import unittest
+from dataclasses import replace
 from fractions import Fraction
 from pathlib import Path
 
@@ -34,6 +35,14 @@ from p_e_sync_on_demand import (
     SyncState,
     apply_transaction as pe_apply_transaction,
 )
+from transaction_reference import (
+    Marker as R2Marker,
+    MarkerKind as R2MarkerKind,
+    TransactionBook as R2TransactionBook,
+    TransactionSpec as R2TransactionSpec,
+    submit as r2_submit,
+)
+
 from r3_transaction_core import (
     MarkerKind,
     TxMarker,
@@ -170,6 +179,58 @@ class SharedTransactionCoreTests(unittest.TestCase):
         self.apply(pa_consume_tw, consume_tw, "tx-main", automatic=True)
         completed = self.apply(pa_complete, complete, "tx-main")
         self.assertEqual(completed.transaction.state.value, "Completed")
+
+    def test_w08_generation_is_part_of_stable_identity_retry_descriptor_against_r2(self):
+        pa_spec, r3_spec = make_pair_spec("tx-generation")
+        r2_spec = R2TransactionSpec(
+            pa_spec.identity, pa_spec.generation, pa_spec.origin,
+            pa_spec.destination, pa_spec.operation, pa_spec.profile,
+            pa_spec.payload, pa_spec.admitted_at, pa_spec.start_at,
+            pa_spec.duration_base, pa_spec.automatic_tws,
+            pa_spec.external_tws,
+            tuple(
+                R2Marker(
+                    item.identity, R2MarkerKind(item.kind.value),
+                    item.at_common, item.irreversible,
+                )
+                for item in pa_spec.markers
+            ),
+        )
+
+        pa_first = pa_submit(PATransactionBook(), pa_spec)
+        r2_first = r2_submit(R2TransactionBook(), r2_spec)
+        pd_state, pd_first = pd_apply_transaction(AgendaState(), submit, r3_spec)
+        pe_state, pe_first = pe_apply_transaction(self.pe_state, submit, r3_spec)
+        self.assertEqual(pa_first.code.value, "OK")
+        self.assertEqual(r2_first.code.value, pa_first.code.value)
+        self.assertEqual(pd_first.code.value, pa_first.code.value)
+        self.assertEqual(pe_first.code.value, pa_first.code.value)
+        expected = canonical(pa_first.transaction)
+        self.assertEqual(canonical(r2_first.transaction), expected)
+        self.assertEqual(canonical(pd_first.transaction), expected)
+        self.assertEqual(canonical(pe_first.transaction), expected)
+
+        # A changed generation under the same stable identity is a divergent
+        # retry descriptor, not an implicit generation replacement.
+        pa_retry = pa_submit(pa_first.book, replace(pa_spec, generation=1))
+        r2_retry = r2_submit(r2_first.book, replace(r2_spec, generation=1))
+        pd_retry_state, pd_retry = pd_apply_transaction(
+            pd_state, submit, replace(r3_spec, generation=1)
+        )
+        pe_retry_state, pe_retry = pe_apply_transaction(
+            pe_state, submit, replace(r3_spec, generation=1)
+        )
+        for result in (pa_retry, r2_retry, pd_retry, pe_retry):
+            self.assertEqual(result.code.value, "InvalidInput")
+        self.assertEqual(pa_retry.book, pa_first.book)
+        self.assertEqual(r2_retry.book, r2_first.book)
+        self.assertEqual(pd_retry_state, pd_state)
+        self.assertEqual(pe_retry_state, pe_state)
+        self.assertEqual(canonical(pa_retry.transaction), expected)
+        self.assertEqual(canonical(r2_retry.transaction), expected)
+        self.assertEqual(canonical(pd_retry.transaction), expected)
+        self.assertEqual(canonical(pe_retry.transaction), expected)
+
 
     def test_w08_all_wait_sources_are_differentially_distinct(self):
         for source in ("external", "fixture", "dependency"):
