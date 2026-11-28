@@ -162,7 +162,10 @@ def _decode_value(value):
 def _validate_candidate(candidate: str, state: object) -> str | None:
     """Validate the candidate's semantic state and its complete W08 transaction ledger."""
     if candidate == "P-D" and isinstance(state, AgendaState):
-        return _validate_pd(state)
+        error = _validate_pd(state)
+        if error is not None:
+            return error
+        return _validate_book(state.transactions)
     if candidate == "P-E" and isinstance(state, SyncState):
         error = _validate_pe(state)
         if error is not None:
