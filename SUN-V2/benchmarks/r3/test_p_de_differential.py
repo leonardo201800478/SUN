@@ -29,7 +29,7 @@ from p_d_discrete_agenda import (
     AgendaConstraint,
     AgendaState,
     PairRelation as AgendaPairRelation,
-    claim_next as p_d_claim_next,
+    close_watermark as p_d_close_watermark,
     publish as p_d_publish,
 )
 from p_e_sync_on_demand import (
@@ -99,16 +99,14 @@ class CandidateDifferentialTests(unittest.TestCase):
 
                 reference = p_a_close_watermark(p_a_book, Fraction(100))
                 self.assertEqual(reference.code, ADeadlineCode.ACCEPTED)
-                candidate_claims = []
-                while True:
-                    result = p_d_claim_next(p_d_state, Fraction(100))
-                    if result.code is AgendaCode.BLOCKED:
-                        break
-                    self.assertEqual(result.code, AgendaCode.CLAIMED)
-                    candidate_claims.append((result.event.identity, result.event.generation))
-                    p_d_state = result.state
-                self.assertEqual(tuple(candidate_claims), reference.claimed)
-                self.assertTrue(all(item.status.value == "Claimed" for item in p_d_state.events))
+                candidate = p_d_close_watermark(p_d_state, Fraction(100))
+                self.assertEqual(candidate.code, AgendaCode.ACCEPTED)
+                self.assertEqual(candidate.claimed, reference.claimed)
+                self.assertEqual(candidate.state.watermark_common, Fraction(100))
+                self.assertTrue(all(
+                    item.status.value == "Claimed"
+                    for item in candidate.state.events
+                ))
 
     def test_p_e_dependency_chain_matches_p_a_w03_causal_sync(self):
         names = ("d0", "d1", "d2")
