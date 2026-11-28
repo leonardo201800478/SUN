@@ -1204,4 +1204,4 @@ def complete(state: AgendaState, identity: str, generation: int) -> AgendaResult
         event.phase_order, event.phase_evidence, event.phase_basis,
     )
     updated = _replace(state, completed)
-    return AgendaResult(updated, AgendaCode.COMPLETED, completed)
+    return AgendaResult(updated, AgendaCode.ACCEPTED, completed)
