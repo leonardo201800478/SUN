@@ -628,7 +628,9 @@ def request_cancel(
         updated_event if (item.identity, item.generation) == (identity, generation) else item
         for item in state.events
     )
-    heap = tuple(item for item in state.heap if item != _key(event))
+    heap_items = [item for item in state.heap if item != _key(event)]
+    heapq.heapify(heap_items)
+    heap = tuple(heap_items)
     pending = tuple(sorted(
         state.pending_cancellations + (request,),
         key=lambda item: (item.at_common, item.identity, item.generation),
