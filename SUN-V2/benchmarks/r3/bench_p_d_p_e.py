@@ -45,7 +45,7 @@ from p_d_discrete_agenda import (
     AgendaConstraint,
     AgendaState,
     PairRelation as DPairRelation,
-    claim_next as p_d_claim_next,
+    close_watermark as p_d_close_watermark,
     publish as p_d_publish,
 )
 from p_e_sync_on_demand import (
@@ -177,18 +177,11 @@ def _p_a_close_operation(book, target):
 
 
 def _p_d_claim_operation(state, target):
-    """Drain the P-D agenda to target and return the claimed identity sequence."""
-    current = state
-    claimed = []
-    while True:
-        result = p_d_claim_next(current, target)
-        if result.code is AgendaCode.BLOCKED:
-            break
-        if result.code is not AgendaCode.CLAIMED:
-            raise RuntimeError(f"P-D claim failed: {result.code.value} {result.detail}")
-        claimed.append((result.event.identity, result.event.generation))
-        current = result.state
-    return tuple(claimed)
+    """Close the P-D watermark atomically and return its claimed identity sequence."""
+    result = p_d_close_watermark(state, target)
+    if result.code is not AgendaCode.ACCEPTED:
+        raise RuntimeError(f"P-D watermark close failed: {result.code.value} {result.detail}")
+    return result.claimed
 
 
 def run_p_d_point(domains: int, count: int, density: str,
