@@ -345,6 +345,7 @@ class CandidateSnapshotTests(unittest.TestCase):
                 SyncDomain("cpu", Fraction(0), Fraction(10)),
                 SyncDomain("vdp", Fraction(0), Fraction(10)),
             ),
+            transitions=(),
             transactions=duplicated,
         )
         pe_result = capture(
