@@ -37,7 +37,10 @@ from deadline_reference import (  # noqa: E402
     close_watermark as r2_close_watermark,
     publish_deadline as r2_publish_deadline,
 )
-from chronos_reference import ClockDomain, make_state as r2_make_state  # noqa: E402
+from chronos_reference import (  # noqa: E402
+    ClockDomain, Obligation as R2Obligation, make_state as r2_make_state,
+)
+from p_a_instruction_catchup import AObligation  # noqa: E402
 from replayable_fixture_corpus import (  # noqa: E402
     capture_differential_fixture,
     replay_fixture_side,
@@ -67,6 +70,16 @@ def _state_data(context, book):
             for item in context.participants
         ],
         "expected_participants": sorted(context.expected_participants),
+        "obligations": [
+            {
+                "identity": item.identity,
+                "owner": item.owner,
+                "at_common": item.at_common,
+                "resolved": item.resolved,
+                "commutative": item.commutative,
+            }
+            for item in context.obligations
+        ],
         "watermark_common": book.watermark_common,
         "deadlines": [
             {
@@ -117,9 +130,17 @@ def _p_a_models(data):
         None if data["watermark_common"] is None
         else _fraction(data["watermark_common"])
     )
+    obligations = tuple(
+        AObligation(
+            item["identity"], item["owner"], _fraction(item["at_common"]),
+            item["resolved"], item["commutative"],
+        )
+        for item in data.get("obligations", [])
+    )
     context = ADeadlineContext(
         participants=participants,
         expected_participants=frozenset(data["expected_participants"]),
+        obligations=obligations,
         watermark_common=watermark,
     )
     deadlines = tuple(
@@ -180,12 +201,19 @@ def _r2_models(data):
         )
         for item in data["participants"]
     )
+    obligations = tuple(
+        R2Obligation(
+            item["identity"], item["owner"], _fraction(item["at_common"]),
+            item["resolved"], item["commutative"],
+        )
+        for item in data.get("obligations", [])
+    )
     context = r2_make_state(
         profile="R3-W05-CANCELLATION-RACES",
         domains=domains,
         expected_participants=data["expected_participants"],
         watermark_common=watermark,
-        obligations=tuple(),
+        obligations=obligations,
     )
     deadlines = tuple(
         R2Deadline(
@@ -228,6 +256,7 @@ def _p_a_result_data(result, context):
     next_context = ADeadlineContext(
         participants=context.participants,
         expected_participants=context.expected_participants,
+        obligations=context.obligations,
         watermark_common=result.book.watermark_common,
     )
     return {
@@ -254,6 +283,16 @@ def _r2_result_data(result, context):
                 for item in context.domains
             ],
             "expected_participants": sorted(context.expected_participants),
+            "obligations": [
+                {
+                    "identity": item.obligation_id,
+                    "owner": item.owner,
+                    "at_common": item.at_common,
+                    "resolved": item.resolved,
+                    "commutative": item.commutative,
+                }
+                for item in context.obligations
+            ],
             "watermark_common": result.book.watermark_common,
             "deadlines": [
                 {
@@ -511,6 +550,84 @@ class W05ReplayableCancellationRaceTests(unittest.TestCase):
             len(operations),
         )
 
+
+    def test_w05_unresolved_obligations_match_r2_admission_frontier(self):
+        names = frozenset(("cpu", "vdp"))
+        cases = (
+            (
+                "UNRESOLVED_BEHIND_FRONTIER",
+                (AParticipant("cpu", Fraction(5), Fraction(10)),
+                 AParticipant("vdp", Fraction(0), Fraction(20))),
+                (AObligation("behind", "cpu", Fraction(4)),),
+                None,
+                ADeadlineCode.INVARIANT_VIOLATION.value,
+            ),
+            (
+                "UNRESOLVED_AT_WATERMARK",
+                (AParticipant("cpu", Fraction(0), Fraction(10)),
+                 AParticipant("vdp", Fraction(0), Fraction(10))),
+                (AObligation("at-watermark", "cpu", Fraction(6)),),
+                Fraction(6),
+                ADeadlineCode.INVARIANT_VIOLATION.value,
+            ),
+            (
+                "UNRESOLVED_AHEAD_OF_FRONTIER",
+                (AParticipant("cpu", Fraction(5), Fraction(10)),
+                 AParticipant("vdp", Fraction(0), Fraction(20))),
+                (AObligation("future", "cpu", Fraction(7)),),
+                None,
+                ADeadlineCode.ACCEPTED.value,
+            ),
+            (
+                "RESOLVED_BEHIND_FRONTIER",
+                (AParticipant("cpu", Fraction(5), Fraction(10)),
+                 AParticipant("vdp", Fraction(0), Fraction(20))),
+                (AObligation("resolved", "cpu", Fraction(4), resolved=True),),
+                None,
+                ADeadlineCode.ACCEPTED.value,
+            ),
+        )
+        for name, participants, obligations, watermark, expected_code in cases:
+            with self.subTest(case=name):
+                context = ADeadlineContext(
+                    participants, names, obligations, watermark
+                )
+                book = ADeadlineBook(watermark_common=watermark)
+                fixture = capture_differential_fixture(
+                    fixture_id=f"W05_OBLIGATION_{name}",
+                    provenance={
+                        "gate": "R3",
+                        "workload": "W05",
+                        "classification": "OBSERVATION",
+                        "scenario": name,
+                        "scope": "P-A/R2 unresolved causal obligation admission",
+                        "limitations": (
+                            "Synthetic common-time obligations only; no physical "
+                            "SMS bus or interrupt source is established."
+                        ),
+                        "contract": "R1 v0.3.18; independent R2 deadline reference",
+                    },
+                    initial_state=_state_data(context, book),
+                    operations=(
+                        {
+                            "sequence": 0,
+                            "name": "publish",
+                            "args": {
+                                "owner": "cpu",
+                                "identity": f"obligation-{name.lower()}",
+                                "generation": 0,
+                                "at_common": Fraction(10),
+                                "effect_id": "obligation-effect",
+                            },
+                        },
+                    ),
+                    left_step=_p_a_step,
+                    right_step=_r2_step,
+                )
+                record_replayable_fixture(fixture)
+                self.assertTrue(fixture["all_equal"])
+                self.assertIsNone(fixture["first_divergence"])
+                self.assertEqual(fixture["cuts"][0]["left_state"]["code"], expected_code)
 
     def test_w05_watermark_may_pass_c_before_arbitration_but_not_d(self):
         context = ADeadlineContext(
