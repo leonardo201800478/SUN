@@ -919,5 +919,89 @@ class CandidateDifferentialTests(unittest.TestCase):
         self.assertEqual(pd_non_monotonic.state, pd_success.state)
 
 
+    def test_p_d_w05_admitted_cancel_must_be_arbitrated_before_watermark_matches_p_a(self):
+        names = frozenset(("cpu", "vdp"))
+        pa_context = ADeadlineContext(
+            (
+                AParticipant("cpu", Fraction(0), Fraction(100), Fraction(1), Fraction(0)),
+                AParticipant("vdp", Fraction(0), Fraction(100), Fraction(1), Fraction(0)),
+            ),
+            names,
+        )
+        pd_context = AgendaContext(
+            (
+                AgendaParticipant("cpu", Fraction(0), Fraction(100)),
+                AgendaParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        pa = p_a_publish_deadline(
+            ADeadlineBook(), pa_context, owner="cpu", identity="w05-cancel-watermark",
+            generation=0, at_common=Fraction(10), effect_id="effect",
+        )
+        pd = p_d_publish_with_context(
+            AgendaState(), pd_context, owner="cpu", identity="w05-cancel-watermark",
+            generation=0, at_common=Fraction(10), effect_id="effect",
+        )
+        pa_cancel = p_a_cancel_deadline(
+            pa.book, pa_context, owner="cpu", identity="w05-cancel-watermark",
+            generation=0, at_common=Fraction(8),
+        )
+        pd_cancel = p_d_request_cancel(
+            pd.state, pd_context, owner="cpu", identity="w05-cancel-watermark",
+            generation=0, at_common=Fraction(8),
+        )
+        self.assertEqual(pa_cancel.code.value, "Accepted")
+        self.assertEqual(pd_cancel.code.value, pa_cancel.code.value)
+        self.assertEqual(_p_a_w05_state(pa_cancel.book), _p_d_w05_state(pd_cancel.state))
+
+        pa_close_early = p_a_close_watermark(pa_cancel.book, Fraction(10))
+        pd_close_early = p_d_close_watermark(pd_cancel.state, Fraction(10), pd_context)
+        self.assertEqual(pa_close_early.code.value, "Blocked")
+        self.assertEqual(pd_close_early.code.value, pa_close_early.code.value)
+        self.assertEqual(_p_a_w05_state(pa_close_early.book), _p_d_w05_state(pd_close_early.state))
+        self.assertEqual(pa_close_early.book, pa_cancel.book)
+        self.assertEqual(pd_close_early.state, pd_cancel.state)
+
+        pa_arbitrated = p_a_arbitrate_cancellations(pa_cancel.book)
+        pd_arbitrated = p_d_arbitrate_cancellations(pd_cancel.state)
+        self.assertEqual(pa_arbitrated.code.value, "Accepted")
+        self.assertEqual(pd_arbitrated.code.value, pa_arbitrated.code.value)
+        self.assertEqual(_p_a_w05_state(pa_arbitrated.book), _p_d_w05_state(pd_arbitrated.state))
+
+        pa_closed = p_a_close_watermark(pa_arbitrated.book, Fraction(10))
+        pd_closed = p_d_close_watermark(pd_arbitrated.state, Fraction(10), pd_context)
+        self.assertEqual(pa_closed.code.value, "Accepted")
+        self.assertEqual(pd_closed.code.value, pa_closed.code.value)
+        self.assertEqual(_p_a_w05_state(pa_closed.book), _p_d_w05_state(pd_closed.state))
+        self.assertEqual(pa_closed.book.watermark_common, Fraction(10))
+        self.assertEqual(pd_closed.state.watermark_common, Fraction(10))
+
+        pa_live = p_a_publish_deadline(
+            ADeadlineBook(), pa_context, owner="cpu", identity="w05-cancel-late",
+            generation=0, at_common=Fraction(10), effect_id="late-effect",
+        )
+        pd_live = p_d_publish_with_context(
+            AgendaState(), pd_context, owner="cpu", identity="w05-cancel-late",
+            generation=0, at_common=Fraction(10), effect_id="late-effect",
+        )
+        pa_live_closed = p_a_close_watermark(pa_live.book, Fraction(10))
+        pd_live_closed = p_d_close_watermark(pd_live.state, Fraction(10), pd_context)
+        self.assertEqual(_p_a_w05_state(pa_live_closed.book), _p_d_w05_state(pd_live_closed.state))
+        pa_late = p_a_cancel_deadline(
+            pa_live_closed.book, pa_context, owner="cpu", identity="w05-cancel-late",
+            generation=0, at_common=Fraction(11),
+        )
+        pd_late = p_d_request_cancel(
+            pd_live_closed.state, pd_context, owner="cpu", identity="w05-cancel-late",
+            generation=0, at_common=Fraction(11),
+        )
+        self.assertEqual(pa_late.code.value, "LateInput")
+        self.assertEqual(pd_late.code.value, pa_late.code.value)
+        self.assertEqual(_p_a_w05_state(pa_late.book), _p_d_w05_state(pd_late.state))
+        self.assertEqual(pa_late.book, pa_live_closed.book)
+        self.assertEqual(pd_late.state, pd_live_closed.state)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
