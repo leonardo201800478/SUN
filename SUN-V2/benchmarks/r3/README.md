@@ -218,3 +218,26 @@ These changes are in disposable R3 candidates/tests and CI only. R1 v0.3.18 and 
 
 
 The follow-up CI attempt exposed an environment compatibility issue before tests began: setup-python 3.14.4 was unavailable for the Ubuntu 26.04 runner. Both R3 jobs now pin 3.14.10, a later published build, while the separate R2 Windows job retains its existing 3.14.4 pin. The next CI run is required to validate this correction.
+
+
+## Independent final review follow-up — CI #11104
+
+**Validated HEAD:** `65a81156bf5d9cb67946e78c930f8f90fdeefef3`. **CI #11104:** [run 46100003064](https://github.com/leonardo201800478/SUN/actions/runs/46100003064) — **SUCCESS**.
+
+- R3 disposable suite: **203/203 PASS Linux and 203/203 PASS Windows** (Python 3.14.10 on both).
+- Corpus emitter: **181 tests PASS** on each platform.
+- Canonical corpus: **117 fixtures / 1,481 cuts** (1,470 differential + 11 property); trace digest `47ffc943d269f68b3a87bd0398a0fa1f46a43d341a3dce447a5d8da7d9ee3d0b`.
+- Replayable corpus: **25 fixtures / 134 operations-cuts**; two divergences preserved (W06 and W07); corpus digest `d978fe0a8591df6526ffc6835d250e1e393fdddbcc6c6a2a13a3e8ac50aba111`.
+- Canonical and replayable artifacts: byte-identical Linux/Windows.
+- R2 independent Linux and R2 Python Windows: PASS. Seven P-A synthetic matrices W00–W09 applicable to the workflow: PASS Linux/Windows. Workflow validation, documentation patch hygiene, change-impact classification and Rust quality supervisor: PASS.
+- Windows benchmark CPU-time samples: `SKIPPED_COARSE_RESOLUTION`; benchmark functional outputs passed, but Windows CPU-time measurements are not performance evidence. Hardware/runtime/desktop and subsystem Rust jobs: SKIPPED, not PASS.
+
+### Review corrections verified by this CI
+
+- W07 preserves `max_microsteps` across actual chained transitions; the non-default limit 2 is reached and a subsequent microstep 3 emission is rejected atomically.
+- Snapshot capture/restore rejects `Scheduled` deadlines at `D <= W`.
+- Only one effect-capable generation per identity is accepted: Scheduled, Claimed, Dispatched, and Failed with pending recoverable subeffects. Cancelled/Superseded/Completed historical generations remain serializable.
+- Linux and Windows R3 use the same pinned Python 3.14.10; the previous 3.14.4 Ubuntu 26.04 provisioning failure is resolved.
+- W09 fixtures with Scheduled deadlines were moved from D=W=8 to D=9, preserving the valid round-trip scenario under the closed-watermark invariant.
+
+**Limits unchanged:** W06 physical evidence remains UNKNOWN; W07 physical B/C remains BLOCKED; the P-A microstep path still has an explicit P-A/R2 divergence and does not establish physical pairwise causality; P-A has no closeout; P-D/P-E remain NOT RUN/BLOCKED; R3 remains in progress; R4/R5 remain pending. No production CHRONOS/V2 code, SMS hardware validation, or 60 FPS claim is covered by this CI.
