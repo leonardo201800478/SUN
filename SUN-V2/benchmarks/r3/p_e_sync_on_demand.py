@@ -153,7 +153,7 @@ class SyncState:
                 for index, first in enumerate(group):
                     for second in group[index + 1:]:
                         if (
-                            _dependency_order(first, second) is not PairRelation.UNKNOWN
+                            _dependency_order(self, first, second) is not PairRelation.UNKNOWN
                             or first.phase_order is not None
                             or first.phase_evidence is not None
                             or first.phase_basis is not None
@@ -334,11 +334,32 @@ def _relation(state: SyncState, first: str, second: str) -> PairRelation:
     return item.relation
 
 
-def _dependency_order(first: SyncTransition, second: SyncTransition) -> PairRelation:
-    """Return the causal relation induced by declared transition dependencies."""
-    if first.identity in second.depends_on:
+def _transitively_depends_on(
+    state: SyncState, ancestor_id: str, descendant_id: str
+) -> bool:
+    """Return whether an explicit dependency path orders ancestor before descendant."""
+    pending = list(state._transition_by_id[descendant_id].depends_on)
+    visited: set[str] = set()
+    while pending:
+        identity = pending.pop()
+        if identity == ancestor_id:
+            return True
+        if identity in visited:
+            continue
+        visited.add(identity)
+        predecessor = state._transition_by_id.get(identity)
+        if predecessor is not None:
+            pending.extend(predecessor.depends_on)
+    return False
+
+
+def _dependency_order(
+    state: SyncState, first: SyncTransition, second: SyncTransition
+) -> PairRelation:
+    """Return direct or transitive order from declared dependency paths."""
+    if _transitively_depends_on(state, first.identity, second.identity):
         return PairRelation.FIRST_BEFORE_SECOND
-    if second.identity in first.depends_on:
+    if _transitively_depends_on(state, second.identity, first.identity):
         return PairRelation.SECOND_BEFORE_FIRST
     return PairRelation.UNKNOWN
 
@@ -415,7 +436,7 @@ def _choose(
         for second_id in ids[index + 1:]:
             first = by_id[first_id]
             second = by_id[second_id]
-            relation = _dependency_order(first, second)
+            relation = _dependency_order(state, first, second)
             declared = declared_relation(first_id, second_id)
             if relation is PairRelation.UNKNOWN:
                 relation = declared
