@@ -147,3 +147,11 @@ A inspeção direta de R2 e P-A confirmou que ambos definem Failed como status t
 - Teste atualizado: test_p_d_w05_claimed_and_processed_states_require_closed_watermark_on_every_operation.
 - HEAD  e8eeb8fdb2fb9e26458d8d358da5d3ee8731081a; CI #46188553676 SUCCESS: R2 258/258 Linux e Windows; R3 317/317 Linux e Windows; corpus emitter 202/202 por OS; corpus canônico/replayável byte-identical; mutation checks R2 e Rust quality/unit regression PASS. Jobs de produção/hardware, Rust workspace e documentation patch hygiene SKIPPED.
 - FUP-01 permanece PARCIAL pelo caso Claimed/W ausente, Failed sem representação P-D e demais não comparáveis documentados.
+
+
+### FUP-01 — tipo inválido de agenda e validação estrutural sem dereference (28/11/2026)
+
+- Novo teste `test_p_d_w05_non_agenda_state_is_rejected_without_dereference`: oito entradas públicas P-D (publish low-level/contextual, request_cancel, arbitrate, close_watermark, dispatch, complete, replace) recebem `None`, retornam `InvalidInput` e preservam o valor de estado (`None`) sem dereference/exception.
+- HEAD `b80247e6bf1953b295b76565aa1aa9d3dc007fc2`; CI #46188764514 SUCCESS: R2 258/258 Linux e Windows; R3 318/318 Linux e Windows; corpus emitter 202/202 por OS; corpora canônico/replayável byte-identical; mutation checks R2 e Rust quality/unit regression PASS. Jobs de produção/hardware, Rust workspace e documentation patch hygiene SKIPPED.
+- A cobertura estrutural P-D inclui ainda container de participantes esperado, entradas de eventos e cancelamentos pendentes malformadas; wrappers/clock-domain/profile específicos do modelo R2 permanecem não comparáveis quando não há tipo equivalente em P-D.
+- FUP-01 permanece PARCIAL; PR sem merge.
