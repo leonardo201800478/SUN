@@ -626,3 +626,15 @@ A recomendação de cobertura negativa estrutural está atendida e validada no H
 ### 17.4 Disposição
 
 Os sete achados P1/P2 foram corrigidos no escopo R3. R1 v0.3.18 e R2 aprovado permanecem imutáveis; nenhum crate Rust de produção/runtime/desktop foi alterado. W06 físico permanece UNKNOWN e W07 físico B/C permanece BLOCKED. P-A continua sem closeout, P-D/P-E NOT RUN/BLOCKED, R3 em andamento e R4/R5 pendentes. O CI não aprova o gate nem valida 60 FPS. A revisão independente formal da PR ainda é condição separada para merge.
+
+
+### 17.5 Follow-up to the independent final review (new HEAD; CI pending)
+
+The three P2 findings from the final review were addressed, and the review's P3 reproducibility observation was also corrected:
+
+1. **W07 limit continuity:** `process()` carries `state.max_microsteps` into the returned `PairwiseCycle`. The regression test now performs a real sequence across returned states with a non-default limit of 2: one transition emits microstep 1, the next reaches microstep 2, and a later attempt to emit microstep 3 returns `ResourceExhausted` atomically.
+2. **Closed watermark:** snapshot validation rejects a `Scheduled` deadline whenever `D <= W`; capture and restore tests cover both `D < W` and `D = W` and verify restore atomicity.
+3. **Single effect-capable generation:** only one generation per identity may remain capable of producing an effect. This includes `Scheduled`, `Claimed`, and `Dispatched`; `Failed` is included while pending subeffects remain recoverable. `Cancelled`, `Superseded`, and `Completed` remain valid historical records. Capture/restore tests exercise a newer scheduled generation while the previous generation is claimed, dispatched, or failed with pending subeffects.
+4. **Python reproducibility:** the Linux R3 job now pins Python 3.14.4 through the same setup-python action/version used by Windows, and invokes that interpreter consistently. This removes the previously reported runner-default version mismatch; runner/OS performance differences remain.
+
+**Validation status:** the earlier CI #11095 and its 197/197 result are historical and do not validate these follow-up commits. The new PR HEAD must complete the full applicable CI before the corrections are marked validated. R1 v0.3.18 and R2 remain unchanged; no production code is touched. W06 physical UNKNOWN; W07 physical B/C BLOCKED; P-A no closeout; P-D/P-E NOT RUN/BLOCKED; R3 in progress; R4/R5 pending.
