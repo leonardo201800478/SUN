@@ -448,21 +448,19 @@ class SyncOnDemandTests(unittest.TestCase):
             self.assertEqual(result.state.observed, expected)
 
     def test_all_120_permutations_preserve_partial_order_with_commutative_siblings(self):
+        # Match the R2-T07 five-event DAG: e1/e2 are commutative
+        # siblings after e0; e3 joins both; e4 follows e3.
         events = (
-            SyncTransition("a", "d0", Fraction(5)),
-            SyncTransition("b", "d1", Fraction(5)),
-            SyncTransition("c", "d2", Fraction(5), depends_on=("a", "b")),
-            SyncTransition("d", "d3", Fraction(5), depends_on=("a", "b", "c")),
-            SyncTransition("e", "d4", Fraction(5)),
+            SyncTransition("e0", "d0", Fraction(5)),
+            SyncTransition("e1", "d1", Fraction(5), depends_on=("e0",)),
+            SyncTransition("e2", "d2", Fraction(5), depends_on=("e0",)),
+            SyncTransition("e3", "d3", Fraction(5), depends_on=("e1", "e2")),
+            SyncTransition("e4", "d4", Fraction(5), depends_on=("e3",)),
         )
         constraints = (
-            SyncConstraint("a", "b", PairRelation.COMMUTATIVE),
-            SyncConstraint("a", "e", PairRelation.COMMUTATIVE),
-            SyncConstraint("b", "e", PairRelation.COMMUTATIVE),
-            SyncConstraint("c", "e", PairRelation.COMMUTATIVE),
-            SyncConstraint("d", "e", PairRelation.COMMUTATIVE),
+            SyncConstraint("e1", "e2", PairRelation.COMMUTATIVE),
         )
-        expected = ("a", "b", "c", "d", "e")
+        expected = ("e0", "e1", "e2", "e3", "e4")
         for ordered in permutations(events):
             state = SyncState(
                 self._five_event_domains(), tuple(ordered), constraints
