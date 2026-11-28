@@ -8,6 +8,7 @@ from p_d_discrete_agenda import (
     AgendaCode,
     AgendaConstraint,
     AgendaEvent,
+    AgendaPhaseBasis,
     AgendaState,
     EventStatus,
     PairRelation,
@@ -162,6 +163,82 @@ class DiscreteAgendaTests(unittest.TestCase):
         result = claim_next(state, Fraction(2))
         self.assertEqual(result.code, AgendaCode.INVALID_INPUT)
         self.assertIs(result.state, state)
+
+
+    @staticmethod
+    def phase_basis(basis_id: str) -> AgendaPhaseBasis:
+        return AgendaPhaseBasis(
+            profile_id="SMS-NTSC-SYNTHETIC",
+            profile_revision="fixture-v1",
+            coordinate="master-clock",
+            unit="mclk",
+            scale_numerator=1,
+            scale_denominator=1,
+            basis_id=basis_id,
+            basis_revision="rev-1",
+            validation_record_id="synthetic-record-" + basis_id,
+            validation_record_sha256="a" * 64,
+        )
+
+    def test_w06_different_phase_bases_remain_unknown(self):
+        state = AgendaState()
+        state = publish(
+            state, identity="phase-a", generation=0, owner="cpu",
+            at_common=Fraction(5), effect_id="ea",
+            phase_order=1, phase_evidence="shared-synthetic-label",
+            phase_basis=self.phase_basis("basis-a"),
+        ).state
+        state = publish(
+            state, identity="phase-b", generation=0, owner="vdp",
+            at_common=Fraction(5), effect_id="eb",
+            phase_order=2, phase_evidence="shared-synthetic-label",
+            phase_basis=self.phase_basis("basis-b"),
+        ).state
+        result = claim_next(state, Fraction(5))
+        self.assertEqual(result.code, AgendaCode.INDETERMINATE)
+        self.assertIs(result.state, state)
+
+    def test_w06_common_phase_basis_is_a_synthetic_positive_control(self):
+        basis = self.phase_basis("shared-basis")
+        state = AgendaState()
+        state = publish(
+            state, identity="phase-a", generation=0, owner="cpu",
+            at_common=Fraction(5), effect_id="ea",
+            phase_order=1, phase_evidence="capture-a", phase_basis=basis,
+        ).state
+        state = publish(
+            state, identity="phase-b", generation=0, owner="vdp",
+            at_common=Fraction(5), effect_id="eb",
+            phase_order=2, phase_evidence="capture-b", phase_basis=basis,
+        ).state
+        result = claim_next(state, Fraction(5))
+        self.assertEqual(result.code, AgendaCode.CLAIMED)
+        self.assertEqual(result.event.identity, "phase-a")
+
+    def test_w07_unknown_b_c_relation_is_not_inferred_from_microstep(self):
+        state = AgendaState()
+        state = publish(
+            state, identity="a", generation=0, owner="cpu",
+            at_common=Fraction(5), effect_id="ea", microstep=0,
+        ).state
+        state = publish(
+            state, identity="b", generation=0, owner="vdp",
+            at_common=Fraction(5), effect_id="eb", microstep=0,
+        ).state
+        state = AgendaState(
+            state.heap, state.events,
+            (AgendaConstraint("a", "b", PairRelation.COMMUTATIVE),),
+        )
+        first = claim_next(state, Fraction(5))
+        self.assertEqual(first.event.identity, "a")
+        done = complete(first.state, "a", 0)
+        with_child = publish(
+            done.state, identity="c", generation=0, owner="psg",
+            at_common=Fraction(5), effect_id="ec", microstep=1,
+        ).state
+        result = claim_next(with_child, Fraction(5))
+        self.assertEqual(result.code, AgendaCode.INDETERMINATE)
+        self.assertIs(result.state, with_child)
 
     def test_float_coordinate_is_rejected(self):
         result = publish(
