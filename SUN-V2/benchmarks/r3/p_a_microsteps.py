@@ -35,6 +35,7 @@ class AStepObligation:
     identity: str
     owner: str
     microstep: int = 0
+    # R2-compatible metadata only; it does not establish a pairwise relation.
     commutative: bool = False
 
 
