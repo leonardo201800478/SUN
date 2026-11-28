@@ -623,6 +623,21 @@ def publish_with_context(
         return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="invalid microstep")
     if microstep > state.max_microsteps:
         return AgendaResult(state, AgendaCode.RESOURCE_EXHAUSTED, detail="microstep limit exceeded")
+    if (
+        isinstance(identity, str) and identity.strip()
+        and type(generation) is int and generation >= 0
+    ):
+        prior = tuple(item for item in state.events if item.identity == identity)
+        if prior and generation > max(item.generation for item in prior):
+            if any(item.status in (
+                EventStatus.SCHEDULED,
+                EventStatus.CANCEL_PENDING,
+                EventStatus.CLAIMED,
+            ) for item in prior):
+                return AgendaResult(
+                    state, AgendaCode.INVALID_INPUT,
+                    detail="prior generation is not terminal",
+                )
     return publish(
         state,
         identity=identity,
