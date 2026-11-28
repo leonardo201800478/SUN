@@ -30,6 +30,7 @@ class AgendaCode(str, Enum):
     INVALID_INPUT = "InvalidInput"
     INVARIANT_VIOLATION = "InvariantViolation"
     RESOURCE_EXHAUSTED = "ResourceExhausted"
+    STALE_IGNORED = "StaleIgnored"
 
 
 class EventStatus(str, Enum):
@@ -38,6 +39,7 @@ class EventStatus(str, Enum):
     CANCEL_PENDING = "CancelPending"
     SUPERSEDED = "Superseded"
     CLAIMED = "Claimed"
+    DISPATCHED = "Dispatched"
     COMPLETED = "Completed"
 
 
@@ -435,6 +437,37 @@ def _validate(state: object) -> str | None:
             )
         ):
             return "pending cancellation and event record disagree"
+    processed_statuses = (
+        EventStatus.DISPATCHED,
+        EventStatus.COMPLETED,
+    )
+    if any(
+        event.status in processed_statuses
+        and (
+            state.watermark_common is None
+            or event.at_common > state.watermark_common
+        )
+        for event in state.events
+    ):
+        return "INVARIANT_VIOLATION: dispatched or completed event is beyond closed watermark"
+    if state.watermark_common is not None and any(
+        event.status is EventStatus.CLAIMED
+        and event.at_common > state.watermark_common
+        for event in state.events
+    ):
+        return "INVARIANT_VIOLATION: claimed event is beyond the closed watermark"
+    active_statuses = {
+        EventStatus.SCHEDULED,
+        EventStatus.CANCEL_PENDING,
+        EventStatus.CLAIMED,
+        EventStatus.DISPATCHED,
+    }
+    if any(
+        event.generation < max_generation[event.identity]
+        and event.status in active_statuses
+        for event in state.events
+    ):
+        return "older event generation remains active after a newer generation"
     for event in state.events:
         if event.status is EventStatus.CANCEL_PENDING and (
             event.identity, event.generation
@@ -476,6 +509,17 @@ def _validate(state: object) -> str | None:
     return None
 
 
+def _validation_code(error: str) -> AgendaCode:
+    """Preserve the distinction between malformed state and lifecycle invariant failure."""
+    if error.startswith("INVARIANT_VIOLATION:"):
+        return AgendaCode.INVARIANT_VIOLATION
+    return AgendaCode.INVALID_INPUT
+
+
+def _validation_detail(error: str) -> str:
+    return error.removeprefix("INVARIANT_VIOLATION:").strip()
+
+
 def _relation(state: AgendaState, first: str, second: str) -> PairRelation:
     """Resolve a declared pair relation in the requested orientation."""
     for item in state.constraints:
@@ -508,7 +552,7 @@ def publish(
     """Publish an owned deadline and atomically fence any older scheduled generation."""
     invalid = _validate(state)
     if invalid is not None:
-        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail=invalid)
+        return AgendaResult(state, _validation_code(invalid), detail=_validation_detail(invalid))
     if (
         not isinstance(identity, str) or not identity.strip()
         or not isinstance(owner, str) or not owner.strip()
@@ -539,8 +583,15 @@ def publish(
     prior = [item for item in state.events if item.identity == identity]
     if prior and generation <= max(item.generation for item in prior):
         return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="generation must increase")
+    if any(item.status is EventStatus.CANCEL_PENDING for item in prior):
+        return AgendaResult(
+            state, AgendaCode.INVALID_INPUT,
+            detail="prior generation cancellation must be arbitrated before replacement",
+        )
     if any(item.status is EventStatus.CLAIMED for item in prior):
         return AgendaResult(state, AgendaCode.BLOCKED, detail="claimed generation must be completed before replacement")
+    if any(item.status is EventStatus.DISPATCHED for item in prior):
+        return AgendaResult(state, AgendaCode.BLOCKED, detail="dispatched generation cannot be replaced")
     events = list(state.events)
     heap = list(state.heap)
     for item in prior:
@@ -583,7 +634,7 @@ def publish_with_context(
     """Publish only against a complete participant contract and matching watermark."""
     invalid = _validate(state)
     if invalid is not None:
-        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail=invalid)
+        return AgendaResult(state, _validation_code(invalid), detail=_validation_detail(invalid))
     code, detail, participants, _, _ = _context_view(state, context)
     if code is not None:
         return AgendaResult(state, code, detail=detail)
@@ -607,6 +658,22 @@ def publish_with_context(
         return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="invalid microstep")
     if microstep > state.max_microsteps:
         return AgendaResult(state, AgendaCode.RESOURCE_EXHAUSTED, detail="microstep limit exceeded")
+    if (
+        isinstance(identity, str) and identity.strip()
+        and type(generation) is int and generation >= 0
+    ):
+        prior = tuple(item for item in state.events if item.identity == identity)
+        if prior and generation > max(item.generation for item in prior):
+            if any(item.status in (
+                EventStatus.SCHEDULED,
+                EventStatus.CANCEL_PENDING,
+                EventStatus.CLAIMED,
+                EventStatus.DISPATCHED,
+            ) for item in prior):
+                return AgendaResult(
+                    state, AgendaCode.INVALID_INPUT,
+                    detail="prior generation is not terminal",
+                )
     return publish(
         state,
         identity=identity,
@@ -637,7 +704,7 @@ def request_cancel(
     """Admit a cancellation only when it is ahead of A(E) and before the deadline."""
     invalid = _validate(state)
     if invalid is not None:
-        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail=invalid)
+        return AgendaResult(state, _validation_code(invalid), detail=_validation_detail(invalid))
     code, detail, participants, frontier, _ = _context_view(state, context)
     if code is not None:
         return AgendaResult(state, code, detail=detail)
@@ -728,7 +795,7 @@ def arbitrate_cancellations(state: AgendaState) -> AgendaResult:
     """Commit every admitted pre-deadline cancellation before watermark closure."""
     invalid = _validate(state)
     if invalid is not None:
-        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail=invalid)
+        return AgendaResult(state, _validation_code(invalid), detail=_validation_detail(invalid))
     if not state.pending_cancellations:
         return AgendaResult(state, AgendaCode.ACCEPTED, detail="no pending cancellations")
     replacements: dict[tuple[str, int], AgendaEvent] = {}
@@ -760,11 +827,95 @@ def arbitrate_cancellations(state: AgendaState) -> AgendaResult:
     return AgendaResult(updated, AgendaCode.ACCEPTED, detail="pending cancellations arbitrated")
 
 
+def replace_with_context(
+    state: AgendaState,
+    context: AgendaContext,
+    *,
+    owner: str,
+    identity: str,
+    generation: int,
+    cancel_at: int | Fraction,
+    new_generation: int,
+    new_at_common: int | Fraction,
+    new_effect_id: str,
+    microstep: bool = False,
+) -> AgendaResult:
+    """Atomically cancel/arbitrate an old generation and publish its successor.
+
+    The operation mirrors the P-A/R2 replacement contract: cancellation must
+    be admissible and arbitrated before the replacement is published. Any
+    failure returns the original state, so a rejected replacement cannot
+    leave the old generation cancelled.
+    """
+    invalid = _validate(state)
+    if invalid is not None:
+        return AgendaResult(state, _validation_code(invalid), detail=_validation_detail(invalid))
+    if (
+        not isinstance(owner, str) or not owner.strip()
+        or not isinstance(identity, str) or not identity.strip()
+        or type(generation) is not int or generation < 0
+        or type(new_generation) is not int or new_generation <= generation
+        or not _exact(cancel_at) or not _exact(new_at_common)
+        or not isinstance(new_effect_id, str) or not new_effect_id.strip()
+        or not isinstance(microstep, bool)
+    ):
+        return AgendaResult(
+            state, AgendaCode.INVALID_INPUT,
+            detail="invalid replacement descriptor",
+        )
+
+    prior = tuple(item for item in state.events if item.identity == identity)
+    if prior and new_generation <= max(item.generation for item in prior):
+        return AgendaResult(
+            state, AgendaCode.INVALID_INPUT,
+            detail="replacement generation must increase monotonically",
+        )
+
+    cancelled = request_cancel(
+        state, context, owner=owner, identity=identity,
+        generation=generation, at_common=cancel_at,
+    )
+    if cancelled.code is not AgendaCode.ACCEPTED:
+        return AgendaResult(
+            state, cancelled.code, cancelled.event, cancelled.detail,
+        )
+
+    arbitrated = arbitrate_cancellations(cancelled.state)
+    if arbitrated.code is not AgendaCode.ACCEPTED:
+        return AgendaResult(state, arbitrated.code, detail=arbitrated.detail)
+
+    published = publish_with_context(
+        arbitrated.state, context, owner=owner, identity=identity,
+        generation=new_generation, at_common=new_at_common,
+        effect_id=new_effect_id, microstep=1 if microstep else 0,
+    )
+    if published.code is not AgendaCode.ACCEPTED:
+        return AgendaResult(
+            state, published.code,
+            detail=f"replacement rejected atomically: {published.detail}",
+        )
+
+    if Fraction(new_at_common) < Fraction(cancel_at):
+        return AgendaResult(
+            state, AgendaCode.LATE_INPUT,
+            detail="replacement deadline precedes replacement operation",
+        )
+    if Fraction(new_at_common) == Fraction(cancel_at):
+        return AgendaResult(
+            state, AgendaCode.INDETERMINATE,
+            detail="replacement deadline coincides with cancellation without explicit causal relation",
+        )
+    return AgendaResult(
+        published.state, AgendaCode.ACCEPTED, published.event,
+        "old generation cancelled and replacement published atomically",
+    )
+
+
 def cancel(state: AgendaState, identity: str, generation: int) -> AgendaResult:
     """Cancel only a scheduled generation; claimed effects are irreversible."""
     invalid = _validate(state)
     if invalid is not None:
-        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail=invalid)
+        return AgendaResult(state, _validation_code(invalid), detail=_validation_detail(invalid))
     event = _find(state, identity, generation)
     if event is None:
         return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="unknown event generation")
@@ -877,7 +1028,7 @@ def claim_next(state: AgendaState, target_common: int | Fraction) -> AgendaResul
     """Claim the earliest due event without imposing insertion-order precedence."""
     invalid = _validate(state)
     if invalid is not None:
-        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail=invalid)
+        return AgendaResult(state, _validation_code(invalid), detail=_validation_detail(invalid))
     if not _exact(target_common):
         return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="target must be exact")
     target = Fraction(target_common)
@@ -937,7 +1088,7 @@ def close_watermark(
     """Atomically claim due events and close one exact, optionally bounded frontier."""
     invalid = _validate(state)
     if invalid is not None:
-        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail=invalid)
+        return AgendaResult(state, _validation_code(invalid), detail=_validation_detail(invalid))
     if not _exact(target_common):
         return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="watermark target must be exact")
     target = Fraction(target_common)
@@ -1014,20 +1165,57 @@ def close_watermark(
     )
 
 
-def complete(state: AgendaState, identity: str, generation: int) -> AgendaResult:
-    """Complete a claimed event generation exactly once."""
+def dispatch_event(state: AgendaState, identity: str, generation: int) -> AgendaResult:
+    """Dispatch only a claimed current generation; repeated dispatch is idempotent."""
     invalid = _validate(state)
     if invalid is not None:
-        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail=invalid)
+        return AgendaResult(state, _validation_code(invalid), detail=_validation_detail(invalid))
+    if (
+        not isinstance(identity, str) or not identity.strip()
+        or type(generation) is not int or generation < 0
+    ):
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="invalid dispatch identity or generation")
     event = _find(state, identity, generation)
     if event is None:
-        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="unknown event generation")
+        return AgendaResult(state, AgendaCode.STALE_IGNORED, detail="stale identity or generation ignored")
+    if event.status in (EventStatus.DISPATCHED, EventStatus.COMPLETED):
+        return AgendaResult(state, AgendaCode.ACCEPTED, event, "dispatch already recorded; no repeated effect")
+    if event.status is EventStatus.CLAIMED and (
+        state.watermark_common is None
+        or event.at_common > state.watermark_common
+    ):
+        return AgendaResult(
+            state, AgendaCode.INVARIANT_VIOLATION, event,
+            "dispatch requires the event to be claimed under a closed watermark",
+        )
     if event.status is not EventStatus.CLAIMED:
-        return AgendaResult(state, AgendaCode.BLOCKED, event, "only a claimed event can complete")
+        return AgendaResult(state, AgendaCode.STALE_IGNORED, event, "event is not claimed; no effect dispatched")
+    dispatched = AgendaEvent(
+        event.identity, event.generation, event.owner, event.at_common,
+        event.effect_id, EventStatus.DISPATCHED, event.microstep,
+        event.phase_order, event.phase_evidence, event.phase_basis,
+    )
+    updated = _replace(state, dispatched)
+    return AgendaResult(updated, AgendaCode.ACCEPTED, dispatched, "claimed event dispatched exactly once")
+
+
+def complete(state: AgendaState, identity: str, generation: int) -> AgendaResult:
+    """Complete a dispatched event generation exactly once."""
+    invalid = _validate(state)
+    if invalid is not None:
+        return AgendaResult(state, _validation_code(invalid), detail=_validation_detail(invalid))
+    if (
+        not isinstance(identity, str) or not identity.strip()
+        or type(generation) is not int or generation < 0
+    ):
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="invalid completion identity or generation")
+    event = _find(state, identity, generation)
+    if event is None or event.status is not EventStatus.DISPATCHED:
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, event, "only a dispatched generation can complete")
     completed = AgendaEvent(
         event.identity, event.generation, event.owner, event.at_common,
         event.effect_id, EventStatus.COMPLETED, event.microstep,
         event.phase_order, event.phase_evidence, event.phase_basis,
     )
     updated = _replace(state, completed)
-    return AgendaResult(updated, AgendaCode.COMPLETED, completed)
+    return AgendaResult(updated, AgendaCode.ACCEPTED, completed)

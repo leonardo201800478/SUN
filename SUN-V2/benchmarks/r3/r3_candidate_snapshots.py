@@ -162,7 +162,10 @@ def _decode_value(value):
 def _validate_candidate(candidate: str, state: object) -> str | None:
     """Validate the candidate's semantic state and its complete W08 transaction ledger."""
     if candidate == "P-D" and isinstance(state, AgendaState):
-        return _validate_pd(state)
+        error = _validate_pd(state)
+        if error is not None:
+            return error
+        return _validate_book(state.transactions)
     if candidate == "P-E" and isinstance(state, SyncState):
         error = _validate_pe(state)
         if error is not None:
@@ -181,7 +184,8 @@ def _canonical_payload(candidate, profile, model_version, input_cursor, state) -
         "state": _encode_value(state),
     }
     return json.dumps(
-        envelope, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        envelope, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+        allow_nan=False,
     ).encode("utf-8")
 
 
@@ -236,7 +240,8 @@ def _decode_artifact(artifact: SnapshotArtifact):
     }:
         raise ValueError("invalid snapshot envelope")
     canonical = json.dumps(
-        envelope, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        envelope, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+        allow_nan=False,
     ).encode("utf-8")
     if canonical != artifact.payload:
         raise ValueError("snapshot payload is not canonical")
@@ -303,7 +308,8 @@ def make_replay_event(sequence: int, operation: str, arguments: dict) -> ReplayE
     ):
         raise ValueError("invalid replay event")
     payload = json.dumps(
-        arguments, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        arguments, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+        allow_nan=False,
     ).encode("utf-8")
     return ReplayEvent(sequence, operation, payload)
 
@@ -351,7 +357,8 @@ def replay_from_snapshot(
         try:
             args = json.loads(event.arguments.decode("utf-8"))
             canonical = json.dumps(
-                args, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+                args, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+                allow_nan=False,
             ).encode("utf-8")
         except (UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError):
             return ReplayResult(SnapshotCode.INVALID_INPUT, base_state, cursor, "invalid replay arguments")

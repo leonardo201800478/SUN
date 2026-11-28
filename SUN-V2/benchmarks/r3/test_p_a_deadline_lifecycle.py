@@ -12,6 +12,7 @@ sys.path.insert(0, str(R2_REFERENCE_PATH))
 
 from p_a_instruction_catchup import AObligation, AParticipant
 from p_a_deadline_lifecycle import (
+    ACancellation,
     ADeadline,
     ADeadlineBook,
     APhaseBasis,
@@ -832,6 +833,499 @@ class PADeadlineLifecycleTests(unittest.TestCase):
         actual = complete_deadline(book, identity="trace-irq", generation=1)
         expected = r2_complete_deadline(to_r2_book(book), identity="trace-irq", generation=1)
         self.compare(actual, expected)
+
+
+    def test_cancel_frontier_empty_participant_contract_matches_r2(self):
+        first = self.publish(
+            owner="cpu", identity="empty-participants", generation=0,
+            at_common=Fraction(10), effect_id="effect",
+        )
+        empty_context = ADeadlineContext((), frozenset())
+        actual = cancel_deadline(
+            first.book, empty_context, owner="cpu",
+            identity="empty-participants", generation=0, at_common=Fraction(5),
+        )
+        expected = r2_cancel_deadline(
+            to_r2_book(first.book),
+            make_state(
+                profile="R3-P-A-DEADLINE-ABSTRACT",
+                domains=(), expected_participants=(),
+            ),
+            owner="cpu", identity="empty-participants",
+            generation=0, at_common=Fraction(5),
+        )
+        self.compare(actual, expected)
+        self.assertEqual(actual.code, ADeadlineCode.BLOCKED)
+        self.assertEqual(actual.book, first.book)
+
+    def test_cancel_frontier_invalid_clock_conversion_matches_r2(self):
+        first = self.publish(
+            owner="cpu", identity="invalid-clock", generation=0,
+            at_common=Fraction(10), effect_id="effect",
+        )
+        invalid_participant = object.__new__(AParticipant)
+        object.__setattr__(invalid_participant, "name", "cpu")
+        object.__setattr__(invalid_participant, "progress", Fraction(0))
+        object.__setattr__(invalid_participant, "safe_horizon", Fraction(100))
+        object.__setattr__(invalid_participant, "units_per_common", Fraction(0))
+        object.__setattr__(invalid_participant, "common_offset", Fraction(0))
+        invalid_context = ADeadlineContext(
+            (invalid_participant,), frozenset({"cpu"}),
+        )
+        actual = cancel_deadline(
+            first.book, invalid_context, owner="cpu",
+            identity="invalid-clock", generation=0, at_common=Fraction(5),
+        )
+        invalid_r2_state = make_state(
+            profile="R3-P-A-DEADLINE-ABSTRACT",
+            domains=(ClockDomain(
+                domain_id="cpu", local_to_common=Fraction(0),
+                common_offset=Fraction(0), progress_local=Fraction(0),
+                horizon_local=Fraction(100),
+            ),),
+            expected_participants=("cpu",),
+        )
+        expected = r2_cancel_deadline(
+            to_r2_book(first.book), invalid_r2_state,
+            owner="cpu", identity="invalid-clock",
+            generation=0, at_common=Fraction(5),
+        )
+        self.compare(actual, expected)
+        self.assertEqual(actual.code, ADeadlineCode.INDETERMINATE)
+        self.assertEqual(actual.book, first.book)
+
+    def test_cancel_frontier_watermark_mismatch_matches_r2(self):
+        context_with_watermark = ADeadlineContext(
+            self.context.participants, self.context.expected_participants,
+            watermark_common=Fraction(2),
+        )
+        first = self.publish(
+            book=ADeadlineBook(watermark_common=Fraction(2)),
+            context=context_with_watermark,
+            owner="cpu", identity="watermark-mismatch", generation=0,
+            at_common=Fraction(10), effect_id="effect",
+        )
+        mismatched_context = ADeadlineContext(
+            self.context.participants, self.context.expected_participants,
+            watermark_common=None,
+        )
+        actual = cancel_deadline(
+            first.book, mismatched_context, owner="cpu",
+            identity="watermark-mismatch", generation=0, at_common=Fraction(5),
+        )
+        expected = r2_cancel_deadline(
+            to_r2_book(first.book), to_r2_context(mismatched_context),
+            owner="cpu", identity="watermark-mismatch",
+            generation=0, at_common=Fraction(5),
+        )
+        self.compare(actual, expected)
+        self.assertEqual(actual.code, ADeadlineCode.INDETERMINATE)
+        self.assertEqual(actual.book, first.book)
+
+    def test_cancellation_microstep_limit_is_finite_and_non_mutating(self):
+        limited_book = ADeadlineBook(max_microsteps=2)
+        first = self.publish(
+            book=limited_book, owner="cpu", identity="cancel-budget",
+            generation=0, at_common=Fraction(10), effect_id="effect",
+        )
+        actual = cancel_deadline(
+            first.book, self.context, owner="cpu",
+            identity="cancel-budget", generation=0,
+            at_common=Fraction(5), microstep_level=3,
+        )
+        expected = r2_cancel_deadline(
+            to_r2_book(first.book), to_r2_context(self.context),
+            owner="cpu", identity="cancel-budget", generation=0,
+            at_common=Fraction(5), microstep_level=3,
+        )
+        self.compare(actual, expected)
+        self.assertEqual(actual.code, ADeadlineCode.RESOURCE_EXHAUSTED)
+        self.assertEqual(actual.book, first.book)
+
+    def test_preconstructed_pending_cancellation_after_deadline_is_rejected_like_r2(self):
+        first = self.publish(
+            owner="cpu", identity="pending-after-d", generation=0,
+            at_common=Fraction(10), effect_id="effect",
+        )
+        deadline = first.book.deadlines[0]
+        pending_book = replace(
+            first.book,
+            deadlines=(replace(deadline, status=ADeadlineStatus.CANCEL_PENDING),),
+            pending_cancellations=(ACancellation(
+                owner="cpu", identity="pending-after-d", generation=0,
+                at_common=Fraction(11),
+            ),),
+        )
+        actual = cancel_deadline(
+            pending_book, self.context, owner="cpu",
+            identity="pending-after-d", generation=0, at_common=Fraction(5),
+        )
+        expected = r2_cancel_deadline(
+            to_r2_book(pending_book), to_r2_context(self.context),
+            owner="cpu", identity="pending-after-d",
+            generation=0, at_common=Fraction(5),
+        )
+        self.compare(actual, expected)
+        self.assertEqual(actual.code, ADeadlineCode.LATE_INPUT)
+        self.assertEqual(actual.book, pending_book)
+
+    def test_cancel_after_closed_watermark_does_not_suppress_claim_like_r2(self):
+        first = self.publish(
+            owner="cpu", identity="closed-before-cancel", generation=0,
+            at_common=Fraction(10), effect_id="effect",
+        )
+        closed = close_watermark(first.book, Fraction(10))
+        closed_ref = r2_close_watermark(to_r2_book(first.book), Fraction(10))
+        self.compare(closed, closed_ref)
+        self.assertEqual(closed.code, ADeadlineCode.ACCEPTED)
+        closed_context = ADeadlineContext(
+            self.context.participants, self.context.expected_participants,
+            watermark_common=Fraction(10),
+        )
+        actual = cancel_deadline(
+            closed.book, closed_context, owner="cpu",
+            identity="closed-before-cancel", generation=0, at_common=Fraction(5),
+        )
+        expected = r2_cancel_deadline(
+            to_r2_book(closed.book), to_r2_context(closed_context),
+            owner="cpu", identity="closed-before-cancel",
+            generation=0, at_common=Fraction(5),
+        )
+        self.compare(actual, expected)
+        self.assertEqual(actual.code, ADeadlineCode.LATE_INPUT)
+        self.assertEqual(actual.book, closed.book)
+
+
+    def test_cancel_frontier_closed_watermark_matches_r2(self):
+        context = ADeadlineContext(
+            self.context.participants, self.context.expected_participants,
+            watermark_common=Fraction(3),
+        )
+        first = self.publish(
+            book=ADeadlineBook(watermark_common=Fraction(3)),
+            context=context,
+            owner="cpu", identity="closed-watermark-frontier",
+            generation=0, at_common=Fraction(10), effect_id="effect",
+        )
+        actual = cancel_deadline(
+            first.book, context, owner="cpu",
+            identity="closed-watermark-frontier", generation=0,
+            at_common=Fraction(2),
+        )
+        expected = r2_cancel_deadline(
+            to_r2_book(first.book), to_r2_context(context),
+            owner="cpu", identity="closed-watermark-frontier",
+            generation=0, at_common=Fraction(2),
+        )
+        self.compare(actual, expected)
+        self.assertEqual(actual.code, ADeadlineCode.LATE_INPUT)
+        self.assertEqual(actual.book, first.book)
+
+    def test_cancel_frontier_requires_owner_declared_and_present_matches_r2(self):
+        first = self.publish(
+            owner="cpu", identity="owner-frontier", generation=0,
+            at_common=Fraction(10), effect_id="effect",
+        )
+        contexts = (
+            ADeadlineContext(
+                (AParticipant("vdp", Fraction(0), Fraction(100)),),
+                frozenset({"vdp"}),
+            ),
+            ADeadlineContext(
+                (AParticipant("vdp", Fraction(0), Fraction(100)),),
+                frozenset({"cpu", "vdp"}),
+            ),
+        )
+        for context in contexts:
+            with self.subTest(expected=context.expected_participants):
+                actual = cancel_deadline(
+                    first.book, context, owner="cpu",
+                    identity="owner-frontier", generation=0,
+                    at_common=Fraction(5),
+                )
+                expected = r2_cancel_deadline(
+                    to_r2_book(first.book), to_r2_context(context),
+                    owner="cpu", identity="owner-frontier",
+                    generation=0, at_common=Fraction(5),
+                )
+                self.compare(actual, expected)
+                self.assertEqual(actual.code, ADeadlineCode.BLOCKED)
+                self.assertEqual(actual.book, first.book)
+
+    def test_cancel_frontier_precedes_claimed_lifecycle_status_matches_r2(self):
+        first = self.publish(
+            owner="cpu", identity="claimed-incomplete-frontier",
+            generation=0, at_common=Fraction(10), effect_id="effect",
+        )
+        actual_closed = close_watermark(first.book, Fraction(10))
+        expected_closed = r2_close_watermark(
+            to_r2_book(first.book), Fraction(10)
+        )
+        self.compare(actual_closed, expected_closed)
+        incomplete = ADeadlineContext(
+            (AParticipant("cpu", Fraction(0), Fraction(100)),),
+            frozenset({"cpu", "vdp"}),
+            watermark_common=Fraction(10),
+        )
+        actual = cancel_deadline(
+            actual_closed.book, incomplete, owner="cpu",
+            identity="claimed-incomplete-frontier", generation=0,
+            at_common=Fraction(11),
+        )
+        expected = r2_cancel_deadline(
+            to_r2_book(actual_closed.book), to_r2_context(incomplete),
+            owner="cpu", identity="claimed-incomplete-frontier",
+            generation=0, at_common=Fraction(11),
+        )
+        self.compare(actual, expected)
+        self.assertEqual(actual.code, ADeadlineCode.BLOCKED)
+        self.assertEqual(actual.book, actual_closed.book)
+
+    def test_cancel_frontier_rejects_non_exact_coordinates_like_r2(self):
+        valid = self.context
+        first = self.publish(
+            owner="cpu", identity="non-exact-frontier",
+            generation=0, at_common=Fraction(10), effect_id="effect",
+        )
+        for field in ("units_per_common", "common_offset", "progress"):
+            with self.subTest(field=field):
+                invalid_vdp = object.__new__(AParticipant)
+                values = {
+                    "name": "vdp",
+                    "progress": Fraction(0),
+                    "safe_horizon": Fraction(100),
+                    "units_per_common": Fraction(1),
+                    "common_offset": Fraction(0),
+                }
+                values[field] = 1.5
+                for key, value in values.items():
+                    object.__setattr__(invalid_vdp, key, value)
+                invalid_context = ADeadlineContext(
+                    (valid.participants[0], invalid_vdp),
+                    valid.expected_participants,
+                )
+                actual = cancel_deadline(
+                    first.book, invalid_context, owner="cpu",
+                    identity="non-exact-frontier", generation=0,
+                    at_common=Fraction(5),
+                )
+                expected = r2_cancel_deadline(
+                    to_r2_book(first.book), to_r2_context(invalid_context),
+                    owner="cpu", identity="non-exact-frontier",
+                    generation=0, at_common=Fraction(5),
+                )
+                self.compare(actual, expected)
+                self.assertEqual(actual.code, ADeadlineCode.INVALID_INPUT)
+                self.assertEqual(actual.book, first.book)
+
+
+    def test_cancel_frontier_accepts_exact_rational_participant_conversions_matches_r2(self):
+        context = ADeadlineContext(
+            (
+                AParticipant(
+                    "cpu", Fraction(1, 2), Fraction(100),
+                    Fraction(2), Fraction(1),
+                ),
+                AParticipant(
+                    "vdp", Fraction(1, 3), Fraction(100),
+                    Fraction(3), Fraction(2),
+                ),
+            ),
+            frozenset({"cpu", "vdp"}),
+        )
+        first = self.publish(
+            book=ADeadlineBook(), context=context,
+            owner="cpu", identity="rational-cancel-frontier",
+            generation=0, at_common=Fraction(10), effect_id="effect",
+        )
+        actual = cancel_deadline(
+            first.book, context, owner="cpu",
+            identity="rational-cancel-frontier", generation=0,
+            at_common=Fraction(1),
+        )
+        expected = r2_cancel_deadline(
+            to_r2_book(first.book), to_r2_context(context),
+            owner="cpu", identity="rational-cancel-frontier",
+            generation=0, at_common=Fraction(1),
+        )
+        self.compare(actual, expected)
+        self.assertEqual(actual.code, ADeadlineCode.ACCEPTED)
+        self.assertEqual(
+            actual.book.pending_cancellations[0].at_common, Fraction(1)
+        )
+
+
+    def test_cancel_frontier_rejects_non_exact_or_regressed_horizon_matches_r2(self):
+        initial = self.publish(
+            owner="cpu", identity="horizon-frontier", generation=0,
+            at_common=Fraction(10), effect_id="effect",
+        ).book
+        for horizon, expected_code in (
+            (0.5, ADeadlineCode.INVALID_INPUT),
+            (Fraction(-1), ADeadlineCode.INVARIANT_VIOLATION),
+            (Fraction(1), ADeadlineCode.INVARIANT_VIOLATION),
+        ):
+            with self.subTest(horizon=horizon):
+                invalid_cpu = object.__new__(AParticipant)
+                for key, value in {
+                    "name": "cpu",
+                    "progress": Fraction(2),
+                    "safe_horizon": horizon,
+                    "units_per_common": Fraction(1),
+                    "common_offset": Fraction(0),
+                }.items():
+                    object.__setattr__(invalid_cpu, key, value)
+                context = ADeadlineContext(
+                    (
+                        invalid_cpu,
+                        AParticipant("vdp", Fraction(2), Fraction(100)),
+                    ),
+                    frozenset({"cpu", "vdp"}),
+                )
+                actual = cancel_deadline(
+                    initial, context, owner="cpu",
+                    identity="horizon-frontier", generation=0,
+                    at_common=Fraction(4),
+                )
+                expected = r2_cancel_deadline(
+                    to_r2_book(initial), to_r2_context(context),
+                    owner="cpu", identity="horizon-frontier", generation=0,
+                    at_common=Fraction(4),
+                )
+                self.compare(actual, expected)
+                self.assertEqual(actual.code, expected_code)
+                self.assertEqual(actual.book, initial)
+
+    def test_publication_rejects_global_horizon_behind_watermark_matches_r2(self):
+        context = ADeadlineContext(
+            (
+                AParticipant("cpu", Fraction(0), Fraction(10)),
+                AParticipant("vdp", Fraction(0), Fraction(30)),
+            ),
+            frozenset({"cpu", "vdp"}),
+            watermark_common=Fraction(20),
+        )
+        book = ADeadlineBook(watermark_common=Fraction(20))
+        actual = publish_deadline(
+            book, context, owner="cpu", identity="global-horizon",
+            generation=0, at_common=Fraction(30), effect_id="effect",
+        )
+        expected = r2_publish_deadline(
+            to_r2_book(book), to_r2_context(context),
+            owner="cpu", identity="global-horizon",
+            generation=0, at_common=Fraction(30), effect_id="effect",
+        )
+        self.compare(actual, expected)
+        self.assertEqual(actual.code, ADeadlineCode.INVARIANT_VIOLATION)
+        self.assertEqual(actual.book, book)
+
+    def test_cancellation_rejects_global_horizon_behind_watermark_matches_r2(self):
+        initial = self.publish(
+            owner="cpu", identity="global-horizon-cancel", generation=0,
+            at_common=Fraction(30), effect_id="effect",
+        ).book
+        context = ADeadlineContext(
+            (
+                AParticipant("cpu", Fraction(0), Fraction(10)),
+                AParticipant("vdp", Fraction(0), Fraction(30)),
+            ),
+            frozenset({"cpu", "vdp"}),
+            watermark_common=Fraction(20),
+        )
+        book = replace(initial, watermark_common=Fraction(20))
+        actual = cancel_deadline(
+            book, context, owner="cpu", identity="global-horizon-cancel",
+            generation=0, at_common=Fraction(25),
+        )
+        expected = r2_cancel_deadline(
+            to_r2_book(book), to_r2_context(context),
+            owner="cpu", identity="global-horizon-cancel",
+            generation=0, at_common=Fraction(25),
+        )
+        self.compare(actual, expected)
+        self.assertEqual(actual.code, ADeadlineCode.INVARIANT_VIOLATION)
+        self.assertEqual(actual.book, book)
+
+    def test_known_horizon_violation_precedes_incomplete_participant_block_matches_r2(self):
+        initial = self.publish(
+            owner="cpu", identity="horizon-before-incomplete", generation=0,
+            at_common=Fraction(30), effect_id="effect",
+        ).book
+        context = ADeadlineContext(
+            (AParticipant("cpu", Fraction(0), Fraction(10)),),
+            frozenset({"cpu", "vdp"}),
+            watermark_common=Fraction(20),
+        )
+        book = replace(initial, watermark_common=Fraction(20))
+        actual = cancel_deadline(
+            book, context, owner="cpu", identity="horizon-before-incomplete",
+            generation=0, at_common=Fraction(25),
+        )
+        expected = r2_cancel_deadline(
+            to_r2_book(book), to_r2_context(context),
+            owner="cpu", identity="horizon-before-incomplete",
+            generation=0, at_common=Fraction(25),
+        )
+        self.compare(actual, expected)
+        self.assertEqual(actual.code, ADeadlineCode.INVARIANT_VIOLATION)
+        self.assertEqual(actual.book, book)
+
+    def test_deadline_admission_rejects_inconsistent_obligations_matches_r2(self):
+        for progress, watermark, obligation_at in (
+            (Fraction(0), Fraction(5), Fraction(5)),
+            (Fraction(6), None, Fraction(5)),
+        ):
+            with self.subTest(progress=progress, watermark=watermark):
+                initial_book = ADeadlineBook(watermark_common=watermark)
+                initial_context = ADeadlineContext(
+                    (AParticipant("cpu", Fraction(0), Fraction(100)),),
+                    frozenset({"cpu"}),
+                    watermark_common=watermark,
+                )
+                scheduled = self.publish(
+                    book=initial_book, context=initial_context,
+                    owner="cpu", identity="obligation-deadline",
+                    generation=0, at_common=Fraction(10), effect_id="effect",
+                ).book
+                inconsistent = ADeadlineContext(
+                    (AParticipant("cpu", progress, Fraction(100)),),
+                    frozenset({"cpu"}),
+                    obligations=(
+                        AObligation("pending", "cpu", obligation_at, resolved=False),
+                    ),
+                    watermark_common=watermark,
+                )
+                publication = publish_deadline(
+                    initial_book, inconsistent, owner="cpu",
+                    identity="new-deadline", generation=0,
+                    at_common=Fraction(12), effect_id="new-effect",
+                )
+                expected_publication = r2_publish_deadline(
+                    to_r2_book(initial_book), to_r2_context(inconsistent),
+                    owner="cpu", identity="new-deadline", generation=0,
+                    at_common=Fraction(12), effect_id="new-effect",
+                )
+                self.compare(publication, expected_publication)
+                self.assertEqual(
+                    publication.code, ADeadlineCode.INVARIANT_VIOLATION
+                )
+                self.assertEqual(publication.book, initial_book)
+
+                cancellation = cancel_deadline(
+                    scheduled, inconsistent, owner="cpu",
+                    identity="obligation-deadline", generation=0,
+                    at_common=Fraction(8),
+                )
+                expected_cancellation = r2_cancel_deadline(
+                    to_r2_book(scheduled), to_r2_context(inconsistent),
+                    owner="cpu", identity="obligation-deadline",
+                    generation=0, at_common=Fraction(8),
+                )
+                self.compare(cancellation, expected_cancellation)
+                self.assertEqual(
+                    cancellation.code, ADeadlineCode.INVARIANT_VIOLATION
+                )
+                self.assertEqual(cancellation.book, scheduled)
 
 
 if __name__ == "__main__":
