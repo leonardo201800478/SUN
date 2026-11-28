@@ -1933,10 +1933,15 @@ class CandidateDifferentialTests(unittest.TestCase):
             names,
         )
         for status in (
+            EventStatus.CLAIMED,
             EventStatus.DISPATCHED,
             EventStatus.COMPLETED,
         ):
             for watermark in (None, Fraction(9)):
+                if status is EventStatus.CLAIMED and watermark is None:
+                    # Unwatermarked claim_next() is a candidate-local primitive,
+                    # not the comparable R2 logical claim.
+                    continue
                 with self.subTest(status=status, watermark=watermark):
                     event = AgendaEvent(
                         "w05-prebuilt-lifecycle", 1, "cpu", Fraction(10),
