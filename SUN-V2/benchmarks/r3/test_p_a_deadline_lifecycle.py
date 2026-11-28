@@ -973,12 +973,16 @@ class PADeadlineLifecycleTests(unittest.TestCase):
         closed_ref = r2_close_watermark(to_r2_book(first.book), Fraction(10))
         self.compare(closed, closed_ref)
         self.assertEqual(closed.code, ADeadlineCode.ACCEPTED)
+        closed_context = ADeadlineContext(
+            self.context.participants, self.context.expected_participants,
+            watermark_common=Fraction(10),
+        )
         actual = cancel_deadline(
-            closed.book, self.context, owner="cpu",
+            closed.book, closed_context, owner="cpu",
             identity="closed-before-cancel", generation=0, at_common=Fraction(5),
         )
         expected = r2_cancel_deadline(
-            to_r2_book(closed.book), to_r2_context(self.context),
+            to_r2_book(closed.book), to_r2_context(closed_context),
             owner="cpu", identity="closed-before-cancel",
             generation=0, at_common=Fraction(5),
         )
