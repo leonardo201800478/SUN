@@ -3,7 +3,7 @@
 **Status:** PARTIAL — traceability consolidation, not a gate approval
 **R3 baseline:** `98cd9e258ae463e32397a119d4d4e6a007346c22`
 **P-A/W05 evidence:** PR #1290 latest validated HEAD `3f0bd208cacf6a135be0905b579a88de1903ce2b`, CI #46186515697 SUCCESS. Previous validated HEAD `bb0841e7f305d5c41af7eea778e458eb9d56c92f`, CI #46186278658 SUCCESS.
-**CI:** https://github.com/leonardo201800478/SUN/actions/runs/46169692644
+**CI:** https://github.com/leonardo201800478/SUN/actions/runs/46186515697
 **Scope:** W05 generation replacement, deadline publication/cancellation, arbitration, watermark interaction and generation fencing.
 
 ## 1. Interpretation
