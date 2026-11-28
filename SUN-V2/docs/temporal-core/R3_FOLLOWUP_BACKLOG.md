@@ -146,3 +146,10 @@ Cada PR deve partir da `main`, conter apenas sua frente, referenciar os IDs FUP,
 - Não copiar V1 nem criar dependência de crates V1.
 - Nenhum código de produção CHRONOS/V2 antes de R5.
 - PASS, FAIL, BLOCKED, NOT RUN e SKIPPED permanecem estados distintos.
+
+
+## Estado de execução — 28/11/2026
+
+- **PR #1289:** índice de acompanhamento aberto em Draft; CI #11228 passou (higiene documental e classificação de impacto).
+- **FUP-01:** primeira fatia de implementação isolada na [PR #1290](https://github.com/leonardo201800478/SUN/pull/1290), branch `research/chronos-r3-fup01-w05-generation-replacement`. A PR adiciona substituição atômica de geração em P-D e diferencial contra P-A. CI #11229 está em execução; não classificar como PASS até conclusão no SHA exato.
+- FUP-02 a FUP-07 permanecem pendentes e serão entregues em PRs próprias, sem misturar implementações independentes nesta PR de índice.
