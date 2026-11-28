@@ -150,3 +150,28 @@ O relatório `R3_PA_ADVERSARIAL_REVIEW.md` registra a revisão do HEAD `09f71c8a
 - **P-A closeout — BLOCKED:** resolver W07, definir o limite de validação W06 e completar ou formalmente reduzir o requisito do corpus antes de iniciar P-D/P-E.
 
 Nenhum finding autoriza alteração de R1/R2, código de produção CHRONOS/V2 ou avanço para R4/R5.
+
+## 12. Current validation addendum — HEAD 28/11/2026
+
+This section supersedes historical CI/status snapshots above where they conflict with the latest validated PR head. The normative R1 v0.3.18 contract and approved R2 oracle are unchanged.
+
+**Validated HEAD:** `7c07a9e6f7d6ee731aa7ba3495dca444a152300c`; [CI #11112 / run 46100695208](https://github.com/leonardo201800478/SUN/actions/runs/46100695208) — SUCCESS.
+
+- R3 disposable suite: **206/206 PASS on Linux and Windows**.
+- Corpus emitter: **184 tests PASS on each platform**.
+- Independent R2 reference: **256/256 PASS on Linux and Windows**, including deliberate mutation checks.
+- Seven P-A synthetic matrices: **351 points per OS**, all functionally PASS.
+- Canonical corpus: **119 fixtures / 1,483 cuts** (1,472 differential + 11 property), logical digest `ab5e146eda37e8292159cc5440beca615c5b511383e3807b24adbacbb490056b`.
+- Replayable corpus: **25 fixtures / 134 operations-cuts**, with W06 and W07 divergences intentionally preserved; logical digest `6189653bb3aa18fc5805f7dd1ae9708ea31b349d03da7ea9fcc906350cbcfbb6`.
+- Dedicated CI job confirms canonical and replayable artifacts are byte-identical across Linux/Windows. Runner-specific artifact SHA-256 values differ because output paths are embedded; logical digests and normalized comparison establish corpus equivalence.
+- CI totals: **9 SUCCESS / 14 SKIPPED**. Skipped jobs do not count as PASS. Windows benchmark CPU-time fields are `SKIPPED_COARSE_RESOLUTION`.
+
+**Remaining gates and limits:**
+
+1. **W06 physical evidence — UNKNOWN.** Current tests validate synthetic phase-basis discrimination only. A resolvable/authenticated external phase record tied to the relevant hardware profile and scenario is still absent.
+2. **W07 physical B/C relation — BLOCKED.** Pairwise causal/commutative adjudication is explicit in the disposable candidate, but the physical relation for the original B/C scenario is not established.
+3. **P-A closeout — NOT READY.** The 25 replayable fixtures/134 operations-cuts and canonical 119/1,483 corpus are verified cross-platform, but complete declared W00–W09 fixture coverage, formal resolution of the recorded P-A/R2 divergence and independent review/closeout criteria are not demonstrated by these counts alone.
+4. **P-D/P-E — NOT RUN/BLOCKED.** Do not begin until P-A entry criteria, frozen shared fixtures and baseline requirements are explicitly met.
+5. **R4/R5 — PENDING.** R4 adversarial review and R5 architectural decision remain mandatory. No production CHRONOS/V2 code before R5.
+
+The formal PR review query at this HEAD returned no submitted reviews and no inline review threads. This is separate from CI success. No hardware/runtime/desktop or subsystem jobs skipped by CI are to be treated as validated, and no Python synthetic benchmark establishes Rust performance, physical SMS timing, frame pacing or 60 FPS.
