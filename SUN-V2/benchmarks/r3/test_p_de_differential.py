@@ -749,6 +749,20 @@ class CandidateDifferentialTests(unittest.TestCase):
         )
         self.assertEqual(pd.state.heap, ((Fraction(20), "w05-replace", 1),))
 
+        pa_closed = p_a_close_watermark(pa.book, Fraction(20))
+        pd_closed = p_d_close_watermark(pd.state, Fraction(20), pd_context)
+        self.assertEqual(pa_closed.code.value, "Accepted")
+        self.assertEqual(pd_closed.code.value, pa_closed.code.value)
+        self.assertEqual(_p_a_w05_state(pa_closed.book), _p_d_w05_state(pd_closed.state))
+        self.assertEqual(
+            tuple(item.status.value for item in pa_closed.book.deadlines),
+            ("Cancelled", "Claimed"),
+        )
+        self.assertEqual(
+            tuple(item.status.value for item in pd_closed.state.events),
+            ("Cancelled", "Claimed"),
+        )
+
         for cancel_at, new_at, expected_code in (
             (Fraction(5), Fraction(4), "LateInput"),
             (Fraction(5), Fraction(5), "IndeterminateCausalOrder"),
