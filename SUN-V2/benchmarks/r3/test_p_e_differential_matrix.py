@@ -6,7 +6,10 @@ These are synthetic contract tests, not physical SMS timing evidence.
 """
 from __future__ import annotations
 
+import sys
 import unittest
+from itertools import combinations, permutations
+from pathlib import Path
 from fractions import Fraction
 
 from p_a_causal_sync import (
@@ -16,6 +19,17 @@ from p_a_causal_sync import (
     ATransition,
     synchronize as p_a_synchronize,
 )
+R2_REFERENCE_PATH = Path(__file__).resolve().parents[2] / "verification" / "r2_reference"
+sys.path.insert(0, str(R2_REFERENCE_PATH))
+
+from causal_reference import (
+    CausalState as R2CausalState,
+    Device as R2Device,
+    SyncCode as R2SyncCode,
+    Transition as R2Transition,
+    synchronize as r2_synchronize,
+)
+
 from p_e_sync_on_demand import (
     PairRelation,
     SyncCode,
@@ -259,6 +273,130 @@ class PEADifferentialMatrixTests(unittest.TestCase):
         self.assertEqual(repeated_reference.state, first_reference.state)
         self.assertEqual(repeated_candidate.state, first_candidate.state)
         self.assertEqual(_pa_progress(repeated_reference.state), _pe_progress(repeated_candidate.state))
+
+
+    def _compare_all_three_models_for_permutation(
+        self, events, *, constraints=(), expected_order=(), indeterminate=False
+    ):
+        pa_state = ACausalState(tuple(
+            ADevice(
+                owner, Fraction(0),
+                (ATransition(identity, Fraction(5), dependencies, commutative),),
+            )
+            for identity, owner, dependencies, commutative in events
+        ))
+        pe_state = SyncState(
+            tuple(
+                SyncDomain(f"d{index}", Fraction(0), Fraction(100))
+                for index in range(5)
+            ),
+            tuple(
+                SyncTransition(
+                    identity, owner, Fraction(5), depends_on=dependencies
+                )
+                for identity, owner, dependencies, _ in events
+            ),
+            tuple(constraints),
+        )
+        r2_state = R2CausalState(tuple(
+            R2Device(
+                owner, Fraction(0),
+                (R2Transition(identity, Fraction(5), dependencies, commutative),),
+            )
+            for identity, owner, dependencies, commutative in events
+        ))
+        participants = ("d0", "d1", "d2", "d3", "d4")
+        pa = p_a_synchronize(
+            pa_state, target_device="d0", at_common=Fraction(5),
+            observes=("d1", "d2", "d3", "d4"),
+        )
+        pe = p_e_synchronize(
+            pe_state, requested_domains=participants,
+            target_common=Fraction(5),
+        )
+        r2 = r2_synchronize(
+            r2_state, target_device="d0", at_common=Fraction(5),
+            observes=("d1", "d2", "d3", "d4"),
+        )
+        if indeterminate:
+            self.assertEqual(pa.code, ACausalCode.INDETERMINATE)
+            self.assertEqual(pe.code, SyncCode.INDETERMINATE)
+            self.assertEqual(r2.code, R2SyncCode.INDETERMINATE)
+            self.assertEqual(pa.state, pa_state)
+            self.assertIs(pe.state, pe_state)
+            self.assertEqual(r2.state, r2_state)
+            self.assertEqual(pa.applied_order, ())
+            self.assertEqual(pe.state.observed, ())
+            self.assertEqual(r2.applied_order, ())
+        else:
+            self.assertEqual(pa.code, ACausalCode.SYNCHRONIZED)
+            self.assertEqual(pe.code, SyncCode.REACHED)
+            self.assertEqual(r2.code, R2SyncCode.SYNCHRONIZED)
+            self.assertEqual(pa.applied_order, expected_order)
+            self.assertEqual(pe.state.observed, expected_order)
+            self.assertEqual(r2.applied_order, expected_order)
+        pa_progress = dict(_pa_progress(pa.state))
+        pe_progress = dict(_pe_progress(pe.state))
+        r2_progress = {item.name: item.progress_common for item in r2.state.devices}
+        self.assertEqual(pa_progress, pe_progress)
+        self.assertEqual(pa_progress, r2_progress)
+
+    def test_120_commutative_five_event_permutations_match_p_a_and_r2(self):
+        events = tuple(
+            (f"e{index}", f"d{index}", (), True)
+            for index in range(5)
+        )
+        constraints = tuple(
+            SyncConstraint(first[0], second[0], PairRelation.COMMUTATIVE)
+            for first, second in combinations(events, 2)
+        )
+        expected = tuple(sorted(item[0] for item in events))
+        for ordered in permutations(events):
+            self._compare_all_three_models_for_permutation(
+                ordered, constraints=constraints, expected_order=expected
+            )
+
+    def test_120_noncommutative_unknown_five_event_permutations_match_p_a_and_r2(self):
+        events = tuple(
+            (f"e{index}", f"d{index}", (), False)
+            for index in range(5)
+        )
+        for ordered in permutations(events):
+            self._compare_all_three_models_for_permutation(
+                ordered, indeterminate=True
+            )
+
+    def test_120_explicit_dependency_five_event_permutations_match_p_a_and_r2(self):
+        events = tuple(
+            (
+                f"e{index}", f"d{index}",
+                () if index == 0 else (f"e{index - 1}",),
+                False,
+            )
+            for index in range(5)
+        )
+        expected = tuple(item[0] for item in events)
+        for ordered in permutations(events):
+            self._compare_all_three_models_for_permutation(
+                ordered, expected_order=expected
+            )
+
+    def test_120_partial_order_five_event_permutations_match_p_a_and_r2(self):
+        events = (
+            ("e0", "d0", (), False),
+            ("e1", "d1", ("e0",), True),
+            ("e2", "d2", ("e0",), True),
+            ("e3", "d3", ("e1", "e2"), False),
+            ("e4", "d4", ("e3",), False),
+        )
+        constraints = (
+            SyncConstraint("e1", "e2", PairRelation.COMMUTATIVE),
+        )
+        expected = ("e0", "e1", "e2", "e3", "e4")
+        for ordered in permutations(events):
+            self._compare_all_three_models_for_permutation(
+                ordered, constraints=constraints, expected_order=expected
+            )
 
 
 if __name__ == "__main__":
