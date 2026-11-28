@@ -617,7 +617,7 @@ class W09ReplayableSnapshotTests(unittest.TestCase):
             PADeadlineRecord(
                 "new-generation",
                 2,
-                Fraction(8),
+                Fraction(9),
                 PADeadlineState.SCHEDULED,
             ),
             PADeadlineRecord(
