@@ -4,7 +4,7 @@ from __future__ import annotations
 import sys
 import unittest
 from fractions import Fraction
-from itertools import permutations
+from itertools import combinations, permutations
 from pathlib import Path
 
 R2_REFERENCE_PATH = Path(__file__).resolve().parents[2] / "verification" / "r2_reference"
@@ -14,6 +14,8 @@ from p_a_microsteps import (
     AStepCode,
     AStepCycle,
     AStepObligation,
+    AStepPairConstraint,
+    AStepPairRelation,
     close_cycle,
     make_cycle,
     process_obligation,
@@ -100,9 +102,10 @@ class PAMicrostepTests(unittest.TestCase):
             (expected.code.value, expected_state),
         )
 
-    def make_pair(self, at_common, obligations, max_microsteps):
+    def make_pair(self, at_common, obligations, max_microsteps, *, future=(), relations=()):
         actual = make_cycle(
-            at_common, obligations, max_microsteps=max_microsteps
+            at_common, obligations, max_microsteps=max_microsteps,
+            future=future, relations=relations,
         )
         expected = r2_make_cycle(
             at_common, obligations, max_microsteps=max_microsteps
@@ -202,8 +205,14 @@ class PAMicrostepTests(unittest.TestCase):
             (f"event-{index}", f"device-{index}", True) for index in range(5)
         )
         expected_final = None
+        relations = tuple(
+            AStepPairConstraint(first[0], second[0], AStepPairRelation.COMMUTATIVE)
+            for first, second in combinations(descriptors, 2)
+        )
         for order in permutations(descriptors):
-            actual = self.make_pair(Fraction(10), order, 2)
+            actual = self.make_pair(
+                Fraction(10), order, 2, relations=relations
+            )
             expected_state = to_r2(actual.state)
             for descriptor in order:
                 actual = process_obligation(
@@ -222,9 +231,14 @@ class PAMicrostepTests(unittest.TestCase):
                 expected_final = canonical(closed.state)
             self.assertEqual(canonical(closed.state), expected_final)
 
-    def test_later_microstep_cannot_overtake_pending_commutative_sibling(self):
+    def test_later_microstep_with_unknown_pair_relation_is_indeterminate(self):
+        future = (AStepObligation("c", "psg", 1, False),)
+        relations = (
+            AStepPairConstraint("a", "b", AStepPairRelation.COMMUTATIVE),
+        )
         initial = self.make_pair(
-            Fraction(10), (("a", "cpu", True), ("b", "vdp", True)), 4
+            Fraction(10), (("a", "cpu", True), ("b", "vdp", True)), 4,
+            future=future, relations=relations,
         ).state
         r2_initial = to_r2(initial)
         parent = process_obligation(
@@ -236,26 +250,90 @@ class PAMicrostepTests(unittest.TestCase):
             emitted=(("c", "psg", False),),
         )
         self.assertEqual(parent.code, AStepCode.ADVANCED)
-        self.assertEqual(tuple((x.identity, x.microstep) for x in parent.state.pending), (("b", 0), ("c", 1)))
+        self.assertEqual(tuple((x.identity, x.microstep) for x in parent.state.pending),
+                         (("b", 0), ("c", 1)))
 
         before = parent.state
-        rejected = process_obligation(before, "c", resolves_obligation=True)
-        self.assertEqual(rejected.code, AStepCode.BLOCKED)
-        self.assertIs(rejected.state, before)
-        self.assertIn("b", tuple(item.identity for item in rejected.state.pending))
-        self.assertNotIn("c", rejected.state.resolved)
+        unresolved = process_obligation(before, "c", resolves_obligation=True)
+        self.assertEqual(unresolved.code, AStepCode.INDETERMINATE)
+        self.assertIs(unresolved.state, before)
+        self.assertIn("b", tuple(item.identity for item in unresolved.state.pending))
+        self.assertNotIn("c", unresolved.state.resolved)
 
-        # R2 accepts the overtaking attempt; retain this as an explicit oracle gap.
-        r2_overtake = r2_process_obligation(r2_parent.state, "c", resolves_obligation=True)
+        # R2 accepts the overtaking attempt; preserve the divergence without
+        # claiming that either synthetic ordering is physical hardware evidence.
+        r2_overtake = r2_process_obligation(
+            r2_parent.state, "c", resolves_obligation=True
+        )
         self.assertEqual(r2_overtake.code, R2Code.ADVANCED)
 
-        sibling = process_obligation(rejected.state, "b", resolves_obligation=True)
-        self.assertEqual(sibling.code, AStepCode.ADVANCED)
-        self.assertEqual(tuple((x.identity, x.microstep) for x in sibling.state.pending), (("c", 1),))
-        child = process_obligation(sibling.state, "c", resolves_obligation=True)
+    def test_explicit_pairwise_commutativity_allows_later_microstep_to_overtake(self):
+        future = (AStepObligation("c", "psg", 1, False),)
+        relations = (
+            AStepPairConstraint("a", "b", AStepPairRelation.COMMUTATIVE),
+            AStepPairConstraint("b", "c", AStepPairRelation.COMMUTATIVE),
+        )
+        initial = self.make_pair(
+            Fraction(10), (("a", "cpu", True), ("b", "vdp", True)), 4,
+            future=future, relations=relations,
+        ).state
+        first = process_obligation(
+            initial, "a", resolves_obligation=True,
+            emitted=(("c", "psg", False),),
+        )
+        self.assertEqual(first.code, AStepCode.ADVANCED)
+        overtaken = process_obligation(
+            first.state, "c", resolves_obligation=True
+        )
+        self.assertEqual(overtaken.code, AStepCode.ADVANCED)
+        self.assertEqual(overtaken.state.resolved, ("a", "c"))
+        self.assertEqual(tuple(item.identity for item in overtaken.state.pending), ("b",))
+        finished = process_obligation(
+            overtaken.state, "b", resolves_obligation=True
+        )
+        self.assertEqual(finished.code, AStepCode.COMPLETE)
+
+    def test_explicit_pairwise_predecessor_blocks_later_microstep(self):
+        future = (AStepObligation("c", "psg", 1, False),)
+        relations = (
+            AStepPairConstraint("a", "b", AStepPairRelation.COMMUTATIVE),
+            AStepPairConstraint("b", "c", AStepPairRelation.FIRST_CAUSES_SECOND),
+        )
+        initial = self.make_pair(
+            Fraction(10), (("a", "cpu", True), ("b", "vdp", True)), 4,
+            future=future, relations=relations,
+        ).state
+        first = process_obligation(
+            initial, "a", resolves_obligation=True,
+            emitted=(("c", "psg", False),),
+        )
+        blocked = process_obligation(
+            first.state, "c", resolves_obligation=True
+        )
+        self.assertEqual(blocked.code, AStepCode.BLOCKED)
+        self.assertIs(blocked.state, first.state)
+        predecessor = process_obligation(
+            blocked.state, "b", resolves_obligation=True
+        )
+        self.assertEqual(predecessor.code, AStepCode.ADVANCED)
+        child = process_obligation(
+            predecessor.state, "c", resolves_obligation=True
+        )
         self.assertEqual(child.code, AStepCode.COMPLETE)
-        self.assertEqual(child.state.pending, ())
-        self.assertEqual(child.state.resolved, ("a", "b", "c"))
+
+    def test_pairwise_causality_cannot_contradict_microstep_assignment(self):
+        result = make_cycle(
+            Fraction(10),
+            (("b", "vdp", True),),
+            future=(AStepObligation("c", "psg", 1, True),),
+            relations=(
+                AStepPairConstraint(
+                    "b", "c", AStepPairRelation.SECOND_CAUSES_FIRST
+                ),
+            ),
+        )
+        self.assertEqual(result.code, AStepCode.INVALID_INPUT)
+        self.assertIn("contradicts", result.detail)
 
     def test_unknown_noncommutative_siblings_remain_indeterminate(self):
         actual = self.make_pair(
