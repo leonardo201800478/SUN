@@ -1380,7 +1380,7 @@ class CandidateDifferentialTests(unittest.TestCase):
         completed = p_d_complete(before, "w05-local-claim", 0)
         self.assertEqual(dispatched.code, AgendaCode.INVARIANT_VIOLATION)
         self.assertEqual(dispatched.state, before)
-        self.assertEqual(completed.code, AgendaCode.INVALID_INPUT)
+        self.assertEqual(completed.code, AgendaCode.INVARIANT_VIOLATION)
         self.assertEqual(completed.state, before)
 
 
@@ -1924,6 +1924,64 @@ class CandidateDifferentialTests(unittest.TestCase):
                 )
                 self.assertEqual(pa.book, pa_published.book)
                 self.assertEqual(pd.state, pd_published.state)
+
+
+    def test_p_d_w05_claimed_and_processed_states_require_closed_watermark_on_every_operation(self):
+        names = frozenset(("cpu",))
+        base_context = AgendaContext(
+            (AgendaParticipant("cpu", Fraction(0), Fraction(100)),),
+            names,
+        )
+        for status in (
+            EventStatus.CLAIMED,
+            EventStatus.DISPATCHED,
+            EventStatus.COMPLETED,
+        ):
+            for watermark in (None, Fraction(9)):
+                with self.subTest(status=status, watermark=watermark):
+                    event = AgendaEvent(
+                        "w05-prebuilt-lifecycle", 1, "cpu", Fraction(10),
+                        "effect", status,
+                    )
+                    state = AgendaState(
+                        heap=(), events=(event,), watermark_common=watermark,
+                    )
+                    context = replace(
+                        base_context, watermark_common=watermark,
+                    )
+                    operations = (
+                        p_d_publish_with_context(
+                            state, context, owner="cpu", identity="new",
+                            generation=1, at_common=Fraction(20),
+                            effect_id="new-effect",
+                        ),
+                        p_d_request_cancel(
+                            state, context, owner="cpu",
+                            identity="w05-prebuilt-lifecycle", generation=1,
+                            at_common=Fraction(5),
+                        ),
+                        p_d_arbitrate_cancellations(state),
+                        p_d_close_watermark(state, Fraction(20), context),
+                        p_d_dispatch_event(
+                            state, "w05-prebuilt-lifecycle", 1,
+                        ),
+                        p_d_complete(
+                            state, "w05-prebuilt-lifecycle", 1,
+                        ),
+                        p_d_replace_with_context(
+                            state, context, owner="cpu",
+                            identity="w05-prebuilt-lifecycle", generation=1,
+                            cancel_at=Fraction(5), new_generation=2,
+                            new_at_common=Fraction(20),
+                            new_effect_id="replacement-effect",
+                        ),
+                    )
+                    for result in operations:
+                        self.assertEqual(
+                            result.code, AgendaCode.INVARIANT_VIOLATION,
+                        )
+                        self.assertEqual(result.state, state)
+
 
 
 if __name__ == "__main__":
