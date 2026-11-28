@@ -506,7 +506,31 @@ def _validate(state: object) -> str | None:
         if pair in pairs:
             return "duplicate unordered pair relation"
         pairs.add(pair)
+    processed = (
+        EventStatus.CLAIMED,
+        EventStatus.DISPATCHED,
+        EventStatus.COMPLETED,
+    )
+    if any(
+        item.status in processed and (
+            state.watermark_common is None
+            or item.at_common > state.watermark_common
+        )
+        for item in state.events
+    ):
+        return "INVARIANT_VIOLATION: claimed or processed event is beyond closed watermark"
     return None
+
+
+def _validation_code(error: str) -> AgendaCode:
+    """Preserve the distinction between malformed state and lifecycle invariant failure."""
+    if error.startswith("INVARIANT_VIOLATION:"):
+        return AgendaCode.INVARIANT_VIOLATION
+    return AgendaCode.INVALID_INPUT
+
+
+def _validation_detail(error: str) -> str:
+    return error.removeprefix("INVARIANT_VIOLATION:").strip()
 
 
 def _relation(state: AgendaState, first: str, second: str) -> PairRelation:
@@ -541,7 +565,7 @@ def publish(
     """Publish an owned deadline and atomically fence any older scheduled generation."""
     invalid = _validate(state)
     if invalid is not None:
-        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail=invalid)
+        return AgendaResult(state, _validation_code(invalid), detail=_validation_detail(invalid))
     if (
         not isinstance(identity, str) or not identity.strip()
         or not isinstance(owner, str) or not owner.strip()
@@ -623,7 +647,7 @@ def publish_with_context(
     """Publish only against a complete participant contract and matching watermark."""
     invalid = _validate(state)
     if invalid is not None:
-        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail=invalid)
+        return AgendaResult(state, _validation_code(invalid), detail=_validation_detail(invalid))
     code, detail, participants, _, _ = _context_view(state, context)
     if code is not None:
         return AgendaResult(state, code, detail=detail)
@@ -693,7 +717,7 @@ def request_cancel(
     """Admit a cancellation only when it is ahead of A(E) and before the deadline."""
     invalid = _validate(state)
     if invalid is not None:
-        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail=invalid)
+        return AgendaResult(state, _validation_code(invalid), detail=_validation_detail(invalid))
     code, detail, participants, frontier, _ = _context_view(state, context)
     if code is not None:
         return AgendaResult(state, code, detail=detail)
@@ -784,7 +808,7 @@ def arbitrate_cancellations(state: AgendaState) -> AgendaResult:
     """Commit every admitted pre-deadline cancellation before watermark closure."""
     invalid = _validate(state)
     if invalid is not None:
-        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail=invalid)
+        return AgendaResult(state, _validation_code(invalid), detail=_validation_detail(invalid))
     if not state.pending_cancellations:
         return AgendaResult(state, AgendaCode.ACCEPTED, detail="no pending cancellations")
     replacements: dict[tuple[str, int], AgendaEvent] = {}
@@ -838,7 +862,7 @@ def replace_with_context(
     """
     invalid = _validate(state)
     if invalid is not None:
-        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail=invalid)
+        return AgendaResult(state, _validation_code(invalid), detail=_validation_detail(invalid))
     if (
         not isinstance(owner, str) or not owner.strip()
         or not isinstance(identity, str) or not identity.strip()
@@ -904,7 +928,7 @@ def cancel(state: AgendaState, identity: str, generation: int) -> AgendaResult:
     """Cancel only a scheduled generation; claimed effects are irreversible."""
     invalid = _validate(state)
     if invalid is not None:
-        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail=invalid)
+        return AgendaResult(state, _validation_code(invalid), detail=_validation_detail(invalid))
     event = _find(state, identity, generation)
     if event is None:
         return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="unknown event generation")
@@ -1017,7 +1041,7 @@ def claim_next(state: AgendaState, target_common: int | Fraction) -> AgendaResul
     """Claim the earliest due event without imposing insertion-order precedence."""
     invalid = _validate(state)
     if invalid is not None:
-        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail=invalid)
+        return AgendaResult(state, _validation_code(invalid), detail=_validation_detail(invalid))
     if not _exact(target_common):
         return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="target must be exact")
     target = Fraction(target_common)
@@ -1077,7 +1101,7 @@ def close_watermark(
     """Atomically claim due events and close one exact, optionally bounded frontier."""
     invalid = _validate(state)
     if invalid is not None:
-        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail=invalid)
+        return AgendaResult(state, _validation_code(invalid), detail=_validation_detail(invalid))
     if not _exact(target_common):
         return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="watermark target must be exact")
     target = Fraction(target_common)
@@ -1158,7 +1182,7 @@ def dispatch_event(state: AgendaState, identity: str, generation: int) -> Agenda
     """Dispatch only a claimed current generation; repeated dispatch is idempotent."""
     invalid = _validate(state)
     if invalid is not None:
-        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail=invalid)
+        return AgendaResult(state, _validation_code(invalid), detail=_validation_detail(invalid))
     if (
         not isinstance(identity, str) or not identity.strip()
         or type(generation) is not int or generation < 0
@@ -1192,7 +1216,7 @@ def complete(state: AgendaState, identity: str, generation: int) -> AgendaResult
     """Complete a dispatched event generation exactly once."""
     invalid = _validate(state)
     if invalid is not None:
-        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail=invalid)
+        return AgendaResult(state, _validation_code(invalid), detail=_validation_detail(invalid))
     if (
         not isinstance(identity, str) or not identity.strip()
         or type(generation) is not int or generation < 0
