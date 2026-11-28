@@ -1117,6 +1117,72 @@ class CandidateDifferentialTests(unittest.TestCase):
         self.assertEqual(pd_rejected.state, pd_state)
 
 
+    def test_p_d_w05_arbitration_rejects_orphan_and_owner_mismatched_cancellations(self):
+        names = frozenset(("cpu", "vdp"))
+        pa_context = ADeadlineContext(
+            (
+                AParticipant("cpu", Fraction(0), Fraction(100), Fraction(1), Fraction(0)),
+                AParticipant("vdp", Fraction(0), Fraction(100), Fraction(1), Fraction(0)),
+            ),
+            names,
+        )
+        pd_context = AgendaContext(
+            (
+                AgendaParticipant("cpu", Fraction(0), Fraction(100)),
+                AgendaParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        identity = "w05-preconstructed-cancellation-integrity"
+        pa_first = p_a_publish_deadline(
+            ADeadlineBook(), pa_context, owner="cpu", identity=identity,
+            generation=0, at_common=Fraction(10), effect_id="effect",
+        )
+        pd_first = p_d_publish_with_context(
+            AgendaState(), pd_context, owner="cpu", identity=identity,
+            generation=0, at_common=Fraction(10), effect_id="effect",
+        )
+        pa_pending = p_a_cancel_deadline(
+            pa_first.book, pa_context, owner="cpu", identity=identity,
+            generation=0, at_common=Fraction(4),
+        )
+        pd_pending = p_d_request_cancel(
+            pd_first.state, pd_context, owner="cpu", identity=identity,
+            generation=0, at_common=Fraction(4),
+        )
+        self.assertEqual(pa_pending.code.value, "Accepted")
+        self.assertEqual(pd_pending.code.value, pa_pending.code.value)
+
+        orphan_pa = replace(pa_pending.book, deadlines=())
+        orphan_pd = replace(pd_pending.state, events=(), heap=())
+        owner_mismatch_pa = replace(
+            pa_pending.book,
+            pending_cancellations=(
+                replace(pa_pending.book.pending_cancellations[0], owner="vdp"),
+            ),
+        )
+        owner_mismatch_pd = replace(
+            pd_pending.state,
+            pending_cancellations=(
+                replace(pd_pending.state.pending_cancellations[0], owner="vdp"),
+            ),
+        )
+        cases = (
+            ("orphan cancellation", orphan_pa, orphan_pd),
+            ("owner mismatch", owner_mismatch_pa, owner_mismatch_pd),
+        )
+        for label, pa_book, pd_state in cases:
+            with self.subTest(case=label):
+                pa_before = pa_book
+                pd_before = pd_state
+                pa = p_a_arbitrate_cancellations(pa_book)
+                pd = p_d_arbitrate_cancellations(pd_state)
+                self.assertEqual(pa.code.value, "InvalidInput")
+                self.assertEqual(pd.code.value, pa.code.value)
+                self.assertEqual(pa.book, pa_before)
+                self.assertEqual(pd.state, pd_before)
+
+
     def test_p_d_w05_generation_replacement_preserves_successor_microstep(self):
         names = frozenset(("cpu", "vdp"))
         pa_context = ADeadlineContext(
