@@ -27,12 +27,13 @@ from p_a_deadline_lifecycle import (
     close_watermark as p_a_close_watermark,
     publish_deadline as p_a_publish_deadline,
 )
-from p_a_instruction_catchup import AParticipant
+from p_a_instruction_catchup import AObligation, AParticipant
 
 from p_d_discrete_agenda import (
     AgendaCode,
     AgendaConstraint,
     AgendaContext,
+    AgendaObligation,
     AgendaParticipant,
     AgendaState,
     EventStatus,
@@ -379,6 +380,94 @@ class CandidateDifferentialTests(unittest.TestCase):
                     at_common=Fraction(10), effect_id="effect",
                 )
                 self.assertEqual(pa.code.value, "InvariantViolation")
+                self.assertEqual(pd.code.value, pa.code.value)
+                self.assertEqual(_p_a_w05_state(pa.book), _p_d_w05_state(pd.state))
+
+    def test_p_d_w05_unresolved_obligations_constrain_admission_frontier(self):
+        names = frozenset(("cpu", "vdp"))
+        cases = (
+            {
+                "pa_participants": (
+                    AParticipant("cpu", Fraction(5), Fraction(10)),
+                    AParticipant("vdp", Fraction(0), Fraction(20)),
+                ),
+                "pd_participants": (
+                    AgendaParticipant("cpu", Fraction(5), Fraction(10)),
+                    AgendaParticipant("vdp", Fraction(0), Fraction(20)),
+                ),
+                "pa_obligations": (AObligation("behind-frontier", "cpu", Fraction(4)),),
+                "pd_obligations": (AgendaObligation("behind-frontier", "cpu", Fraction(4)),),
+                "watermark": None,
+                "expected": "InvariantViolation",
+            },
+            {
+                "pa_participants": (
+                    AParticipant("cpu", Fraction(0), Fraction(10)),
+                    AParticipant("vdp", Fraction(0), Fraction(10)),
+                ),
+                "pd_participants": (
+                    AgendaParticipant("cpu", Fraction(0), Fraction(10)),
+                    AgendaParticipant("vdp", Fraction(0), Fraction(10)),
+                ),
+                "pa_obligations": (AObligation("at-watermark", "cpu", Fraction(6)),),
+                "pd_obligations": (AgendaObligation("at-watermark", "cpu", Fraction(6)),),
+                "watermark": Fraction(6),
+                "expected": "InvariantViolation",
+            },
+            {
+                "pa_participants": (
+                    AParticipant("cpu", Fraction(5), Fraction(10)),
+                    AParticipant("vdp", Fraction(0), Fraction(20)),
+                ),
+                "pd_participants": (
+                    AgendaParticipant("cpu", Fraction(5), Fraction(10)),
+                    AgendaParticipant("vdp", Fraction(0), Fraction(20)),
+                ),
+                "pa_obligations": (AObligation("future", "cpu", Fraction(7)),),
+                "pd_obligations": (AgendaObligation("future", "cpu", Fraction(7)),),
+                "watermark": None,
+                "expected": "Accepted",
+            },
+            {
+                "pa_participants": (
+                    AParticipant("cpu", Fraction(5), Fraction(10)),
+                    AParticipant("vdp", Fraction(0), Fraction(20)),
+                ),
+                "pd_participants": (
+                    AgendaParticipant("cpu", Fraction(5), Fraction(10)),
+                    AgendaParticipant("vdp", Fraction(0), Fraction(20)),
+                ),
+                "pa_obligations": (
+                    AObligation("resolved-behind", "cpu", Fraction(4), resolved=True),
+                ),
+                "pd_obligations": (
+                    AgendaObligation("resolved-behind", "cpu", Fraction(4), resolved=True),
+                ),
+                "watermark": None,
+                "expected": "Accepted",
+            },
+        )
+        for index, case in enumerate(cases):
+            with self.subTest(case=index):
+                pa_context = ADeadlineContext(
+                    case["pa_participants"], names, case["pa_obligations"],
+                    case["watermark"],
+                )
+                pd_context = AgendaContext(
+                    case["pd_participants"], names, case["watermark"],
+                    case["pd_obligations"],
+                )
+                pa = p_a_publish_deadline(
+                    ADeadlineBook(watermark_common=case["watermark"]),
+                    pa_context, owner="cpu", identity=f"w05-obligation-{index}",
+                    generation=0, at_common=Fraction(10), effect_id="effect",
+                )
+                pd = p_d_publish_with_context(
+                    AgendaState(watermark_common=case["watermark"]),
+                    pd_context, owner="cpu", identity=f"w05-obligation-{index}",
+                    generation=0, at_common=Fraction(10), effect_id="effect",
+                )
+                self.assertEqual(pa.code.value, case["expected"])
                 self.assertEqual(pd.code.value, pa.code.value)
                 self.assertEqual(_p_a_w05_state(pa.book), _p_d_w05_state(pd.state))
 
