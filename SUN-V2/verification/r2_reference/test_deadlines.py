@@ -171,8 +171,7 @@ class R2BPublicationTests(unittest.TestCase):
         self.assertEqual(before.deadlines[0].status, DeadlineStatus.SCHEDULED)
 
         rejected = publish(
-            before, machine(), owner="cpu", identity="evt",
-            generation=1, at_common=Fraction(12), effect_id="successor",
+            before, machine(), generation=1, at=12,
         )
 
         self.assertEqual(rejected.code, DeadlineCode.INVALID_INPUT)
