@@ -487,6 +487,190 @@ def publish(
     return AgendaResult(updated, AgendaCode.ACCEPTED, event)
 
 
+def publish_with_context(
+    state: AgendaState,
+    context: AgendaContext,
+    *,
+    identity: str,
+    generation: int,
+    owner: str,
+    at_common: int | Fraction,
+    effect_id: str,
+    microstep: int = 0,
+    phase_order: int | None = None,
+    phase_evidence: str | None = None,
+    phase_basis: AgendaPhaseBasis | None = None,
+) -> AgendaResult:
+    """Publish only against a complete participant contract and matching watermark."""
+    invalid = _validate(state)
+    if invalid is not None:
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail=invalid)
+    code, detail, participants, _, _ = _context_view(state, context)
+    if code is not None:
+        return AgendaResult(state, code, detail=detail)
+    if owner not in context.expected_participants:
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="deadline owner is not declared")
+    participant = participants.get(owner)
+    if participant is None:
+        return AgendaResult(state, AgendaCode.BLOCKED, detail="deadline owner progress is missing")
+    if not _exact(at_common):
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="deadline coordinate must be exact")
+    if (
+        state.watermark_common is not None
+        and Fraction(at_common) <= state.watermark_common
+    ):
+        return AgendaResult(state, AgendaCode.LATE_INPUT, detail="deadline is at or behind the closed watermark")
+    if Fraction(at_common) < participant.progress_common:
+        return AgendaResult(state, AgendaCode.LATE_INPUT, detail="deadline is behind owner progress")
+    if Fraction(at_common) == participant.progress_common and microstep == 0:
+        return AgendaResult(state, AgendaCode.INDETERMINATE, detail="same-frontier publication requires an explicit microstep")
+    if type(microstep) is not int or microstep < 0:
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="invalid microstep")
+    if microstep > state.max_microsteps:
+        return AgendaResult(state, AgendaCode.RESOURCE_EXHAUSTED, detail="microstep limit exceeded")
+    return publish(
+        state,
+        identity=identity,
+        generation=generation,
+        owner=owner,
+        at_common=at_common,
+        effect_id=effect_id,
+        microstep=microstep,
+        phase_order=phase_order,
+        phase_evidence=phase_evidence,
+        phase_basis=phase_basis,
+    )
+
+
+def request_cancel(
+    state: AgendaState,
+    context: AgendaContext,
+    *,
+    owner: str,
+    identity: str,
+    generation: int,
+    at_common: int | Fraction,
+    microstep_level: int | None = None,
+    phase_order: int | None = None,
+    phase_evidence: str | None = None,
+    phase_basis: AgendaPhaseBasis | None = None,
+) -> AgendaResult:
+    """Admit a cancellation only when it is ahead of A(E) and before the deadline."""
+    invalid = _validate(state)
+    if invalid is not None:
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail=invalid)
+    code, detail, participants, frontier, _ = _context_view(state, context)
+    if code is not None:
+        return AgendaResult(state, code, detail=detail)
+    if not isinstance(owner, str) or owner not in context.expected_participants:
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="cancellation owner is not declared")
+    if not _exact(at_common):
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="cancellation coordinate must be exact")
+    if (
+        microstep_level is not None
+        and (type(microstep_level) is not int or microstep_level < 0)
+    ):
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="invalid cancellation microstep")
+    if microstep_level is not None and microstep_level > state.max_microsteps:
+        return AgendaResult(state, AgendaCode.RESOURCE_EXHAUSTED, detail="microstep limit exceeded")
+    if (phase_order is None) != (phase_evidence is None):
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="phase order and evidence must be supplied together")
+    if phase_order is not None and (
+        type(phase_order) is not int
+        or not isinstance(phase_evidence, str)
+        or not phase_evidence.strip()
+    ):
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="invalid cancellation phase descriptor")
+    if phase_basis is not None and (
+        not _valid_phase_basis(phase_basis)
+        or phase_order is None or phase_evidence is None
+    ):
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="invalid cancellation phase basis")
+    event = _find(state, identity, generation)
+    if event is None:
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="unknown deadline generation")
+    if event.owner != owner:
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, event, "cancellation owner does not own deadline")
+    if event.status is not EventStatus.SCHEDULED:
+        return AgendaResult(state, AgendaCode.LATE_INPUT, event, "deadline is not cancellable")
+    if Fraction(at_common) <= frontier:
+        return AgendaResult(state, AgendaCode.LATE_INPUT, event, "cancellation is at or behind A(E)")
+    if (
+        state.watermark_common is not None
+        and state.watermark_common >= event.at_common
+    ):
+        return AgendaResult(state, AgendaCode.LATE_INPUT, event, "deadline is at or behind the closed watermark")
+    if Fraction(at_common) > event.at_common:
+        return AgendaResult(state, AgendaCode.LATE_INPUT, event, "cancellation is after the deadline")
+
+    request = AgendaCancellation(
+        identity, generation, owner, Fraction(at_common), microstep_level,
+        phase_order, phase_evidence, phase_basis,
+    )
+    if Fraction(at_common) == event.at_common:
+        precedes = _cancellation_precedes(request, event)
+        if precedes is None:
+            return AgendaResult(state, AgendaCode.INDETERMINATE, event, "same-instant cancellation order is UNKNOWN")
+        if not precedes:
+            return AgendaResult(state, AgendaCode.LATE_INPUT, event, "deadline precedes cancellation")
+
+    updated_event = AgendaEvent(
+        event.identity, event.generation, event.owner, event.at_common,
+        event.effect_id, EventStatus.CANCEL_PENDING, event.microstep,
+        event.phase_order, event.phase_evidence, event.phase_basis,
+    )
+    events = tuple(
+        updated_event if (item.identity, item.generation) == (identity, generation) else item
+        for item in state.events
+    )
+    heap = tuple(item for item in state.heap if item != _key(event))
+    pending = tuple(sorted(
+        state.pending_cancellations + (request,),
+        key=lambda item: (item.at_common, item.identity, item.generation),
+    ))
+    updated = AgendaState(
+        heap, events, state.constraints, state.max_events,
+        state.watermark_common, pending, state.max_microsteps,
+    )
+    return AgendaResult(updated, AgendaCode.ACCEPTED, updated_event)
+
+
+def arbitrate_cancellations(state: AgendaState) -> AgendaResult:
+    """Commit every admitted pre-deadline cancellation before watermark closure."""
+    invalid = _validate(state)
+    if invalid is not None:
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail=invalid)
+    if not state.pending_cancellations:
+        return AgendaResult(state, AgendaCode.ACCEPTED, detail="no pending cancellations")
+    replacements: dict[tuple[str, int], AgendaEvent] = {}
+    for request in state.pending_cancellations:
+        event = _find(state, request.identity, request.generation)
+        if event is None or event.status is not EventStatus.CANCEL_PENDING:
+            return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="pending cancellation lost its event")
+        if request.at_common > event.at_common:
+            return AgendaResult(state, AgendaCode.LATE_INPUT, event, "cancellation is after the deadline")
+        if request.at_common == event.at_common:
+            precedes = _cancellation_precedes(request, event)
+            if precedes is None:
+                return AgendaResult(state, AgendaCode.INDETERMINATE, event, "same-instant cancellation order is UNKNOWN")
+            if not precedes:
+                return AgendaResult(state, AgendaCode.LATE_INPUT, event, "deadline precedes cancellation")
+        replacements[(event.identity, event.generation)] = AgendaEvent(
+            event.identity, event.generation, event.owner, event.at_common,
+            event.effect_id, EventStatus.CANCELLED, event.microstep,
+            event.phase_order, event.phase_evidence, event.phase_basis,
+        )
+    events = tuple(
+        replacements.get((item.identity, item.generation), item)
+        for item in state.events
+    )
+    updated = AgendaState(
+        state.heap, events, state.constraints, state.max_events,
+        state.watermark_common, (), state.max_microsteps,
+    )
+    return AgendaResult(updated, AgendaCode.ACCEPTED, detail="pending cancellations arbitrated")
+
+
 def cancel(state: AgendaState, identity: str, generation: int) -> AgendaResult:
     """Cancel only a scheduled generation; claimed effects are irreversible."""
     invalid = _validate(state)
