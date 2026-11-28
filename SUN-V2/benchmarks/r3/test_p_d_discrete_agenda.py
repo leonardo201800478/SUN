@@ -18,6 +18,7 @@ from p_d_discrete_agenda import (
     claim_next,
     close_watermark,
     complete,
+    dispatch_event,
     publish,
     publish_with_context,
     request_cancel,
@@ -139,16 +140,25 @@ class DiscreteAgendaTests(unittest.TestCase):
         self.assertEqual(replacement.code, AgendaCode.BLOCKED)
         self.assertIs(replacement.state, claimed.state)
 
-    def test_completion_is_exactly_once(self):
+    def test_completion_requires_dispatch_and_is_exactly_once(self):
         state = publish(
             AgendaState(), identity="event", generation=0, owner="cpu",
             at_common=Fraction(5), effect_id="effect",
         ).state
-        claimed = claim_next(state, Fraction(5))
-        done = complete(claimed.state, "event", 0)
-        self.assertEqual(done.code, AgendaCode.COMPLETED)
+        claimed = close_watermark(state, Fraction(5))
+        self.assertEqual(claimed.code, AgendaCode.ACCEPTED)
+        premature = complete(claimed.state, "event", 0)
+        self.assertEqual(premature.code, AgendaCode.INVALID_INPUT)
+        self.assertIs(premature.state, claimed.state)
+
+        dispatched = dispatch_event(claimed.state, "event", 0)
+        self.assertEqual(dispatched.code, AgendaCode.ACCEPTED)
+        self.assertEqual(dispatched.event.status, EventStatus.DISPATCHED)
+        done = complete(dispatched.state, "event", 0)
+        self.assertEqual(done.code, AgendaCode.ACCEPTED)
+        self.assertEqual(done.event.status, EventStatus.COMPLETED)
         retry = complete(done.state, "event", 0)
-        self.assertEqual(retry.code, AgendaCode.BLOCKED)
+        self.assertEqual(retry.code, AgendaCode.INVALID_INPUT)
         self.assertIs(retry.state, done.state)
 
     def test_capacity_exhaustion_is_atomic(self):
@@ -237,9 +247,8 @@ class DiscreteAgendaTests(unittest.TestCase):
         )
         first = claim_next(state, Fraction(5))
         self.assertEqual(first.event.identity, "a")
-        done = complete(first.state, "a", 0)
         with_child = publish(
-            done.state, identity="c", generation=0, owner="psg",
+            first.state, identity="c", generation=0, owner="psg",
             at_common=Fraction(5), effect_id="ec", microstep=1,
         ).state
         result = claim_next(with_child, Fraction(5))
