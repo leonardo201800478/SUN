@@ -165,6 +165,25 @@ class R2BPublicationTests(unittest.TestCase):
         self.assertEqual(second.code, DeadlineCode.ACCEPTED)
         self.assertEqual(stale.code, DeadlineCode.INVALID_INPUT)
 
+    def test_successor_publication_rejects_prior_cancel_pending_generation(self):
+        initial = publish(DeadlineBook(), machine(), at=10).book
+        pending = cancel_deadline(
+            initial, machine(progress=2), owner="cpu", identity="evt",
+            generation=1, at_common=Fraction(4),
+        )
+        self.assertEqual(pending.code, DeadlineCode.ACCEPTED)
+        before = pending.book
+        self.assertEqual(before.deadlines[0].status, DeadlineStatus.CANCEL_PENDING)
+        self.assertEqual(len(before.pending_cancellations), 1)
+
+        rejected = publish(before, machine(), generation=2, at=12)
+
+        self.assertEqual(rejected.code, DeadlineCode.INVALID_INPUT)
+        self.assertEqual(rejected.book, before)
+        self.assertEqual(rejected.book.deadlines[0].status, DeadlineStatus.CANCEL_PENDING)
+        self.assertEqual(rejected.book.pending_cancellations, before.pending_cancellations)
+
+
     def test_direct_publication_enforces_finite_microstep_limit(self):
         book = DeadlineBook(max_microsteps=2)
 
