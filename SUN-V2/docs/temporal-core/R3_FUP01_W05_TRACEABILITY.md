@@ -102,3 +102,19 @@ These are prototype representation limits, not claims about physical SMS hardwar
 - Added generation-fencing cases: a `Dispatched` generation cannot be replaced before completion; after completion a successor can be published; an older cancelled/replaced generation returns `StaleIgnored` and cannot dispatch. Invalid identity/generation descriptors for dispatch and completion are rejected atomically.
 - CI #46186912606: R2 258/258 Linux and Windows; R3 315/315 Linux and Windows; corpus emission 202/202 per OS; canonical/replayable corpus equivalence PASS; R2 mutation checks and Rust quality/unit regression PASS. Rust workspace, documentation patch hygiene and production/hardware jobs SKIPPED.
 - FUP-01 remains PARTIAL. `Failed` and partial-effect recovery are NOT REPRESENTED in P-D; unwatermarked `claim_next()` remains candidate-local; malformed-book/all-operations lifecycle invariants and remaining invalid dispatch/completion descriptors still need a deliberate crosswalk.
+
+
+## 8. All-operations watermark invariant — 28/11/2026 (validation pending)
+
+R2 test_claimed_and_processed_deadlines_require_closed_watermark establishes that Claimed, Dispatched, Completed and Failed records are invalid when the book has no closed watermark or when their deadline is beyond W. R2 returns InvariantViolation for both dispatch and completion against these preconstructed invalid states. R2 test_scheduled_deadline_behind_closed_watermark_is_rejected_by_all_operations separately requires all eight operations (publish, cancel, arbitrate, close W, dispatch, complete, replace and schedule microstep) to reject a Scheduled deadline at/behind W atomically.
+
+Inspection found a P-D gap: _validate() enforced the Scheduled-at/behind-W rule, but did not globally enforce the corresponding Claimed/Dispatched/Completed lifecycle invariant. The dispatch-specific check covered only Claimed during dispatch; preconstructed Dispatched/Completed records could bypass the invariant through other operations and idempotent dispatch.
+
+Candidate change on PR #1290 HEAD 6aff7eef55ca7aa9b35eca83e58f841512c7759b:
+- _validate() now rejects Claimed, Dispatched and Completed records without W or beyond W.
+- Validation result mapping preserves InvariantViolation separately from malformed-input InvalidInput across all ten P-D operation entry points using the shared validator.
+- Differential test test_p_d_w05_claimed_and_processed_states_require_closed_watermark_on_every_operation covers preconstructed lifecycle states at W absent and W=9 with D=10 across contextual publish, cancel request, cancellation arbitration, watermark close, dispatch, completion and contextual replacement. Every operation must reject atomically with InvariantViolation.
+- Candidate-local unwatermarked claim_next() remains deliberately non-comparable; its subsequent dispatch/completion now report the global lifecycle invariant failure rather than treating the state as a valid processed lifecycle.
+- CI #46187809471 is IN PROGRESS at the time of this note. No PASS is claimed until the complete Linux/Windows run finishes on the exact HEAD.
+
+P-D still has no Failed status or partial-effect ledger, so R2's Failed-state row is not claimed as covered. This work does not alter R2 and does not infer hardware timing.
