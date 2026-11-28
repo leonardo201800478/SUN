@@ -175,3 +175,12 @@ This section supersedes historical CI/status snapshots above where they conflict
 5. **R4/R5 — PENDING.** R4 adversarial review and R5 architectural decision remain mandatory. No production CHRONOS/V2 code before R5.
 
 The formal PR review query at this HEAD returned no submitted reviews and no inline review threads. This is separate from CI success. No hardware/runtime/desktop or subsystem jobs skipped by CI are to be treated as validated, and no Python synthetic benchmark establishes Rust performance, physical SMS timing, frame pacing or 60 FPS.
+
+
+## 13. Artifact-level W00–W09 coverage clarification (28/11/2026)
+
+The Linux/Windows artifacts from CI #11115 were downloaded and checked independently. The replayable corpus contains at least one fixture for every declared workload W00–W09: W00=1, W01=1, W02=1, W03=1, W04=1, W05=1, W06=2, W07=1, W08=12, W09=4 (25 total; 134 operations/cuts). The replayable JSON SHA-256 is identical on both platforms: `db07c303eb7af6f902ddbf26e41ec93015729733b3af5f36aa8da5e65d641ecc`. The canonical JSON SHA-256 is also identical: `c24b96ddec7d82f283fcd71e398b8208eb3f7b8f90e3ba8e8fbc6bbcea68e895`.
+
+This resolves category-level fixture presence for W00–W09. It does not establish exhaustive coverage of every parameter/edge case, and the replayable differential currently compares P-A with R2—not P-D/P-E. The two W06/W07 divergences remain explicit and prevent claiming full P-A/R2 equivalence.
+
+Source audit also confirms that the available SMS references provide clock ratios and selected timing observations, but not an authenticated phase record for the exact W06 CPU/VDP pair or an event-specific causal/commutative result for W07 VDP/PSG. W06 remains UNKNOWN and physical W07 remains BLOCKED; no phase order is inferred from frequency ratios or ASIC integration alone.
