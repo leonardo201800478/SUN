@@ -30,6 +30,7 @@ class AgendaCode(str, Enum):
     INVALID_INPUT = "InvalidInput"
     INVARIANT_VIOLATION = "InvariantViolation"
     RESOURCE_EXHAUSTED = "ResourceExhausted"
+    STALE_IGNORED = "StaleIgnored"
 
 
 class EventStatus(str, Enum):
@@ -38,6 +39,7 @@ class EventStatus(str, Enum):
     CANCEL_PENDING = "CancelPending"
     SUPERSEDED = "Superseded"
     CLAIMED = "Claimed"
+    DISPATCHED = "Dispatched"
     COMPLETED = "Completed"
 
 
@@ -435,10 +437,25 @@ def _validate(state: object) -> str | None:
             )
         ):
             return "pending cancellation and event record disagree"
+    claimed_statuses = (
+        EventStatus.CLAIMED,
+        EventStatus.DISPATCHED,
+        EventStatus.COMPLETED,
+    )
+    if any(
+        event.status in claimed_statuses
+        and (
+            state.watermark_common is None
+            or event.at_common > state.watermark_common
+        )
+        for event in state.events
+    ):
+        return "claimed or processed event is beyond the closed watermark"
     active_statuses = {
         EventStatus.SCHEDULED,
         EventStatus.CANCEL_PENDING,
         EventStatus.CLAIMED,
+        EventStatus.DISPATCHED,
     }
     if any(
         event.generation < max_generation[event.identity]
@@ -1129,16 +1146,45 @@ def close_watermark(
     )
 
 
-def complete(state: AgendaState, identity: str, generation: int) -> AgendaResult:
-    """Complete a claimed event generation exactly once."""
+def dispatch_event(state: AgendaState, identity: str, generation: int) -> AgendaResult:
+    """Dispatch only a claimed current generation; repeated dispatch is idempotent."""
     invalid = _validate(state)
     if invalid is not None:
         return AgendaResult(state, AgendaCode.INVALID_INPUT, detail=invalid)
+    if (
+        not isinstance(identity, str) or not identity.strip()
+        or type(generation) is not int or generation < 0
+    ):
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="invalid dispatch identity or generation")
     event = _find(state, identity, generation)
     if event is None:
-        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="unknown event generation")
+        return AgendaResult(state, AgendaCode.STALE_IGNORED, detail="stale identity or generation ignored")
+    if event.status in (EventStatus.DISPATCHED, EventStatus.COMPLETED):
+        return AgendaResult(state, AgendaCode.ACCEPTED, event, "dispatch already recorded; no repeated effect")
     if event.status is not EventStatus.CLAIMED:
-        return AgendaResult(state, AgendaCode.BLOCKED, event, "only a claimed event can complete")
+        return AgendaResult(state, AgendaCode.STALE_IGNORED, event, "event is not claimed; no effect dispatched")
+    dispatched = AgendaEvent(
+        event.identity, event.generation, event.owner, event.at_common,
+        event.effect_id, EventStatus.DISPATCHED, event.microstep,
+        event.phase_order, event.phase_evidence, event.phase_basis,
+    )
+    updated = _replace(state, dispatched)
+    return AgendaResult(updated, AgendaCode.ACCEPTED, dispatched, "claimed event dispatched exactly once")
+
+
+def complete(state: AgendaState, identity: str, generation: int) -> AgendaResult:
+    """Complete a dispatched event generation exactly once."""
+    invalid = _validate(state)
+    if invalid is not None:
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail=invalid)
+    if (
+        not isinstance(identity, str) or not identity.strip()
+        or type(generation) is not int or generation < 0
+    ):
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, detail="invalid completion identity or generation")
+    event = _find(state, identity, generation)
+    if event is None or event.status is not EventStatus.DISPATCHED:
+        return AgendaResult(state, AgendaCode.INVALID_INPUT, event, "only a dispatched generation can complete")
     completed = AgendaEvent(
         event.identity, event.generation, event.owner, event.at_common,
         event.effect_id, EventStatus.COMPLETED, event.microstep,
