@@ -294,3 +294,14 @@ A inspeção dos modelos de referência e dos candidatos identificou que "equiva
 - `Blocked` para dependência ausente em R2 e `InvalidInput` para descritor de dependência desconhecido em P-E permanecem classificações distintas até prova de que as pré-condições são idênticas.
 - **W06 permanece UNKNOWN; W07 permanece UNKNOWN/BLOCKED.** Positive control com phase basis sintética não prova fase física; microstep não resolve relação B/C.
 - **FUP-02 permanece PARCIAL.** Documento criado na branch `research/chronos-r3-follow-up`, commit `610e7018aab8bcd53ecf6583c6859f2671f8cdca`. Sem alteração de código de produção.
+
+
+### Consolidação FUP-03 — decisão de fronteira TransactionBook/ResourceLedger (28/11/2026)
+
+- Criado `SUN-V2/docs/temporal-core/R3_FUP03_W08_BOUNDARY_AUDIT.md`, com crosswalk R2-T08/T15, composição W08, atomicidade, exactly-once, falha parcial, recovery e generation/identity.
+- **Decisão:** não adicionar `capacity`/`max_transactions` ao TransactionBook no R3. R2 e R3 mantêm coleção de registros sem limite lógico; não existe contrato de capacidade, custo por transação ou eviction.
+- O ResourceLedger mantém sua capacidade abstrata caller-supplied, separada do TransactionBook. Não representa contagem de transações, bytes, ciclos, slots de hardware ou limite físico SMS.
+- Um eventual orçamento de memória em runtime será política interna de implementação, separada do contrato de hardware, e depende de medição e da política de retenção necessária a snapshot/replay. Nenhum valor fixo foi inventado.
+- Recovery TransactionBook/ResourceLedger permanece **IncomparableRecovery**; os caminhos não devem ser aplicados sequencialmente como se fossem uma transação composta.
+- Generation do TransactionBook permanece parte do descritor estável; divergência de generation sob a mesma identity é retry inválido, não replacement.
+- Documento criado na branch `research/chronos-r3-follow-up`, commit `6c5d1403619e3b8a1fbf8184f11e19f0eed0f412`. FUP-03 continua PARCIAL.
