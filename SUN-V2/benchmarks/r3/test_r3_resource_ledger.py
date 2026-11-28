@@ -1,7 +1,12 @@
 """Differential W08 resource-ledger tests: independent R3 candidate vs R2 oracle."""
 from __future__ import annotations
 
+import sys
 import unittest
+from pathlib import Path
+
+REFERENCE_PATH = Path(__file__).resolve().parents[2] / "verification" / "r2_reference"
+sys.path.insert(0, str(REFERENCE_PATH))
 
 from resource_reference import (
     ResourceLedger as R2Ledger,
