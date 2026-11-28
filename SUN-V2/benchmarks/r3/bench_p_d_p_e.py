@@ -176,7 +176,7 @@ def _p_a_close_operation(book, target):
     return result.claimed
 
 
-def _p_d_claim_operation(state, target):
+def _p_d_close_operation(state, target):
     """Close the P-D watermark atomically and return its claimed identity sequence."""
     result = p_d_close_watermark(state, target)
     if result.code is not AgendaCode.ACCEPTED:
@@ -217,7 +217,7 @@ def run_p_d_point(domains: int, count: int, density: str,
     peak_a = _allocation_probe(p_a_operation, expected)
     peak_d = _allocation_probe(p_d_operation, expected)
     return {
-        "family": "P-D W01/W02 deadline claim",
+        "family": "P-D W01/W02 deadline watermark close",
         "parameters": {"domains": domains, "deadlines": count, "density": density},
         "sample_count": repeats,
         "p_a": {
