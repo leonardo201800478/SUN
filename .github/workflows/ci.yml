@@ -1138,14 +1138,17 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14.4"
       - name: Run isolated R3 prototype tests
         working-directory: SUN-V2/benchmarks/r3
         env:
           PYTHONDONTWRITEBYTECODE: "1"
           PYTHONHASHSEED: "0"
         run: |
-          python3 --version
-          python3 -m unittest discover -s . -p 'test_*.py' -v
+          python --version
+          python -m unittest discover -s . -p 'test_*.py' -v
           if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
             echo "R3 prototype tests modified the worktree"
             git status --short
@@ -1157,7 +1160,7 @@ jobs:
           PYTHONDONTWRITEBYTECODE: "1"
           PYTHONHASHSEED: "0"
         run: |
-          python3 emit_p_a_trace_corpus.py --output "$RUNNER_TEMP/r3-p-a-trace-linux.json" --replayable-output "$RUNNER_TEMP/r3-p-a-replayable-linux.json"
+          python emit_p_a_trace_corpus.py --output "$RUNNER_TEMP/r3-p-a-trace-linux.json" --replayable-output "$RUNNER_TEMP/r3-p-a-replayable-linux.json"
       - name: Upload canonical P-A trace corpus
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -1180,7 +1183,7 @@ jobs:
           PYTHONDONTWRITEBYTECODE: "1"
           PYTHONHASHSEED: "0"
         run: |
-          python3 bench_p_a.py --domains 1,2,4,8,16 --obligations 0,8,128 --chunks 64,1024,8192 --densities sparse,dense --warmup 5 --repeats 30 --output "$RUNNER_TEMP/r3-p-a-baseline-linux.json"
+          python bench_p_a.py --domains 1,2,4,8,16 --obligations 0,8,128 --chunks 64,1024,8192 --densities sparse,dense --warmup 5 --repeats 30 --output "$RUNNER_TEMP/r3-p-a-baseline-linux.json"
       - name: Upload P-A baseline JSON
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -1195,7 +1198,7 @@ jobs:
           PYTHONDONTWRITEBYTECODE: "1"
           PYTHONHASHSEED: "0"
         run: |
-          python3 bench_p_a_deadlines.py --domains 1,2,4,8,16 --deadlines 1,8,128 --densities sparse,dense --warmup 5 --repeats 30 --output "$RUNNER_TEMP/r3-p-a-deadlines-linux.json"
+          python bench_p_a_deadlines.py --domains 1,2,4,8,16 --deadlines 1,8,128 --densities sparse,dense --warmup 5 --repeats 30 --output "$RUNNER_TEMP/r3-p-a-deadlines-linux.json"
       - name: Upload P-A deadline lifecycle JSON
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -1210,7 +1213,7 @@ jobs:
           PYTHONDONTWRITEBYTECODE: "1"
           PYTHONHASHSEED: "0"
         run: |
-          python3 bench_p_a_causal.py --fan-in 1,2,4,8,16 --depths 1,4,16 --observation-counts 1,8,32 --warmup 5 --repeats 30 --output "$RUNNER_TEMP/r3-p-a-causal-linux.json"
+          python bench_p_a_causal.py --fan-in 1,2,4,8,16 --depths 1,4,16 --observation-counts 1,8,32 --warmup 5 --repeats 30 --output "$RUNNER_TEMP/r3-p-a-causal-linux.json"
       - name: Upload P-A causal synchronization JSON
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -1225,7 +1228,7 @@ jobs:
           PYTHONDONTWRITEBYTECODE: "1"
           PYTHONHASHSEED: "0"
         run: |
-          python3 bench_p_a_ordering.py --group-sizes 2,4,8,16 --relations unknown,commutative,phase_ordered --orders forward,reverse --warmup 5 --repeats 30 --output "$RUNNER_TEMP/r3-p-a-w06-linux.json"
+          python bench_p_a_ordering.py --group-sizes 2,4,8,16 --relations unknown,commutative,phase_ordered --orders forward,reverse --warmup 5 --repeats 30 --output "$RUNNER_TEMP/r3-p-a-w06-linux.json"
       - name: Upload P-A W06 ordering JSON
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -1240,7 +1243,7 @@ jobs:
           PYTHONDONTWRITEBYTECODE: "1"
           PYTHONHASHSEED: "0"
         run: |
-          python3 bench_p_a_microsteps.py --depths 1,2,4,8,16,32 --modes complete,exhaust --warmup 5 --repeats 30 --output "$RUNNER_TEMP/r3-p-a-w07-linux.json"
+          python bench_p_a_microsteps.py --depths 1,2,4,8,16,32 --modes complete,exhaust --warmup 5 --repeats 30 --output "$RUNNER_TEMP/r3-p-a-w07-linux.json"
       - name: Upload P-A W07 microsteps JSON
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -1255,7 +1258,7 @@ jobs:
           PYTHONDONTWRITEBYTECODE: "1"
           PYTHONHASHSEED: "0"
         run: |
-          python3 bench_p_a_transactions.py --sizes 1,2,4,8,16 --modes complete,partial-failure --warmup 5 --repeats 30 --output "$RUNNER_TEMP/r3-p-a-w08-linux.json"
+          python bench_p_a_transactions.py --sizes 1,2,4,8,16 --modes complete,partial-failure --warmup 5 --repeats 30 --output "$RUNNER_TEMP/r3-p-a-w08-linux.json"
       - name: Upload P-A W08 transactions JSON
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -1270,7 +1273,7 @@ jobs:
           PYTHONDONTWRITEBYTECODE: "1"
           PYTHONHASHSEED: "0"
         run: |
-          python3 bench_p_a_snapshots.py --sizes 1,2,4,8,16 --replay-events 0,1,4,16 --warmup 5 --repeats 30 --output "$RUNNER_TEMP/r3-p-a-w09-linux.json"
+          python bench_p_a_snapshots.py --sizes 1,2,4,8,16 --replay-events 0,1,4,16 --warmup 5 --repeats 30 --output "$RUNNER_TEMP/r3-p-a-w09-linux.json"
       - name: Upload P-A W09 snapshot replay JSON
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
