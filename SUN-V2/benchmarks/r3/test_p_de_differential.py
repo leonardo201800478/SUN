@@ -25,6 +25,8 @@ from p_a_deadline_lifecycle import (
     arbitrate_cancellations as p_a_arbitrate_cancellations,
     cancel_deadline as p_a_cancel_deadline,
     close_watermark as p_a_close_watermark,
+    complete_deadline as p_a_complete_deadline,
+    dispatch_deadline as p_a_dispatch_deadline,
     publish_deadline as p_a_publish_deadline,
     replace_deadline as p_a_replace_deadline,
 )
@@ -41,7 +43,10 @@ from p_d_discrete_agenda import (
     EventStatus,
     arbitrate_cancellations as p_d_arbitrate_cancellations,
     PairRelation as AgendaPairRelation,
+    claim_next as p_d_claim_next,
     close_watermark as p_d_close_watermark,
+    complete as p_d_complete,
+    dispatch_event as p_d_dispatch_event,
     publish as p_d_publish,
     publish_with_context as p_d_publish_with_context,
     request_cancel as p_d_request_cancel,
@@ -1242,6 +1247,130 @@ class CandidateDifferentialTests(unittest.TestCase):
         self.assertEqual(pd.code.value, pa.code.value)
         self.assertEqual(pa.book, pa_before)
         self.assertEqual(pd.state, pd_before)
+
+
+    def test_p_d_w05_claim_dispatch_complete_lifecycle_matches_p_a(self):
+        names = frozenset(("cpu", "vdp"))
+        pa_context = ADeadlineContext(
+            (
+                AParticipant("cpu", Fraction(0), Fraction(100)),
+                AParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        pd_context = AgendaContext(
+            (
+                AgendaParticipant("cpu", Fraction(0), Fraction(100)),
+                AgendaParticipant("vdp", Fraction(0), Fraction(100)),
+            ),
+            names,
+        )
+        pa = p_a_publish_deadline(
+            ADeadlineBook(), pa_context, owner="cpu", identity="w05-lifecycle",
+            generation=0, at_common=Fraction(10), effect_id="effect",
+        )
+        pd = p_d_publish_with_context(
+            AgendaState(), pd_context, owner="cpu", identity="w05-lifecycle",
+            generation=0, at_common=Fraction(10), effect_id="effect",
+        )
+        self.assertEqual(pa.code.value, "Accepted")
+        self.assertEqual(pd.code.value, pa.code.value)
+        self.assertEqual(_p_a_w05_state(pa.book), _p_d_w05_state(pd.state))
+
+        early_pa = p_a_dispatch_deadline(
+            pa.book, identity="w05-lifecycle", generation=0,
+        )
+        early_pd = p_d_dispatch_event(
+            pd.state, "w05-lifecycle", 0,
+        )
+        self.assertEqual(early_pa.code.value, "StaleIgnored")
+        self.assertEqual(early_pd.code.value, early_pa.code.value)
+        self.assertEqual(early_pa.book, pa.book)
+        self.assertEqual(early_pd.state, pd.state)
+
+        pa_closed = p_a_close_watermark(pa.book, Fraction(10))
+        pd_closed = p_d_close_watermark(pd.state, Fraction(10), pd_context)
+        self.assertEqual(pa_closed.code.value, "Accepted")
+        self.assertEqual(pd_closed.code.value, pa_closed.code.value)
+        self.assertEqual(pa_closed.claimed, pd_closed.claimed)
+        self.assertEqual(_p_a_w05_state(pa_closed.book), _p_d_w05_state(pd_closed.state))
+
+        premature_pa = p_a_complete_deadline(
+            pa_closed.book, identity="w05-lifecycle", generation=0,
+        )
+        premature_pd = p_d_complete(
+            pd_closed.state, "w05-lifecycle", 0,
+        )
+        self.assertEqual(premature_pa.code.value, "InvalidInput")
+        self.assertEqual(premature_pd.code.value, premature_pa.code.value)
+        self.assertEqual(premature_pa.book, pa_closed.book)
+        self.assertEqual(premature_pd.state, pd_closed.state)
+
+        dispatched_pa = p_a_dispatch_deadline(
+            pa_closed.book, identity="w05-lifecycle", generation=0,
+        )
+        dispatched_pd = p_d_dispatch_event(
+            pd_closed.state, "w05-lifecycle", 0,
+        )
+        self.assertEqual(dispatched_pa.code.value, "Accepted")
+        self.assertEqual(dispatched_pd.code.value, dispatched_pa.code.value)
+        self.assertEqual(_p_a_w05_state(dispatched_pa.book), _p_d_w05_state(dispatched_pd.state))
+        self.assertEqual(
+            next(item for item in dispatched_pa.book.deadlines).status.value,
+            "Dispatched",
+        )
+        self.assertEqual(
+            next(item for item in dispatched_pd.state.events).status.value,
+            "Dispatched",
+        )
+
+        repeated_pa = p_a_dispatch_deadline(
+            dispatched_pa.book, identity="w05-lifecycle", generation=0,
+        )
+        repeated_pd = p_d_dispatch_event(
+            dispatched_pd.state, "w05-lifecycle", 0,
+        )
+        self.assertEqual(repeated_pa.code.value, "Accepted")
+        self.assertEqual(repeated_pd.code.value, repeated_pa.code.value)
+        self.assertEqual(repeated_pa.book, dispatched_pa.book)
+        self.assertEqual(repeated_pd.state, dispatched_pd.state)
+
+        completed_pa = p_a_complete_deadline(
+            dispatched_pa.book, identity="w05-lifecycle", generation=0,
+        )
+        completed_pd = p_d_complete(
+            dispatched_pd.state, "w05-lifecycle", 0,
+        )
+        self.assertEqual(completed_pa.code.value, "Accepted")
+        self.assertEqual(completed_pd.code.value, completed_pa.code.value)
+        self.assertEqual(_p_a_w05_state(completed_pa.book), _p_d_w05_state(completed_pd.state))
+
+        repeated_complete_pa = p_a_complete_deadline(
+            completed_pa.book, identity="w05-lifecycle", generation=0,
+        )
+        repeated_complete_pd = p_d_complete(
+            completed_pd.state, "w05-lifecycle", 0,
+        )
+        self.assertEqual(repeated_complete_pa.code.value, "InvalidInput")
+        self.assertEqual(repeated_complete_pd.code.value, repeated_complete_pa.code.value)
+        self.assertEqual(repeated_complete_pa.book, completed_pa.book)
+        self.assertEqual(repeated_complete_pd.state, completed_pd.state)
+
+
+    def test_p_d_w05_unwatermarked_claim_cannot_dispatch_or_complete(self):
+        state = p_d_publish(
+            AgendaState(), identity="w05-local-claim", generation=0,
+            owner="cpu", at_common=Fraction(5), effect_id="effect",
+        ).state
+        claimed = p_d_claim_next(state, Fraction(5))
+        self.assertEqual(claimed.code, AgendaCode.CLAIMED)
+        before = claimed.state
+        dispatched = p_d_dispatch_event(before, "w05-local-claim", 0)
+        completed = p_d_complete(before, "w05-local-claim", 0)
+        self.assertEqual(dispatched.code, AgendaCode.INVARIANT_VIOLATION)
+        self.assertEqual(dispatched.state, before)
+        self.assertEqual(completed.code, AgendaCode.INVALID_INPUT)
+        self.assertEqual(completed.state, before)
 
 
     def test_p_d_w05_generation_replacement_preserves_successor_microstep(self):
