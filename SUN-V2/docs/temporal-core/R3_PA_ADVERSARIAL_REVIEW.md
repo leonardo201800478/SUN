@@ -731,3 +731,17 @@ External technical references provide useful constraints but do not settle these
 - W06 remains **UNKNOWN** until the exact CPU/VDP events are defined and a profile/revision-specific common-clock capture or equivalent primary measurement establishes their relative phase and provenance.
 - W07 remains **BLOCKED** until the exact VDP/PSG transition pair is defined and evidence establishes a causal relation, commutativity, or continued UNKNOWN. The fact that PSG is integrated into the VDP ASIC is not, by itself, a commutativity proof.
 - No R1/R2 semantic change is justified by these references alone. Keep the R2 oracle immutable and do not convert clock-frequency ratios into phase ordering.
+
+## 19. Disposição do responsável do projeto — P-A fechado como baseline experimental (28/11/2026)
+
+O responsável pelo projeto escolheu o caminho 2: preservar UNKNOWN e formalizar W06/W07 como exceções explícitas P-A/R2, sem alteração de R1 ou do oráculo R2. O registro completo está em R3_PA_CLOSEOUT.md e no comentário de decisão da PR #1284.
+
+**Closeout limitado P-A:** aprovado como baseline experimental congelada no HEAD 466f789bc9bfc73c7d6388f31b3f9142b48acf78, CI #11122 SUCCESS. Evidência: R3 206/206 Linux/Windows; corpus emitter 184 testes por OS; R2 256/256 por OS com mutation checks; 351 pontos por OS; corpus canônico 119/1.483 e replayável 25/134; JSONs byte a byte idênticos entre plataformas. W00–W09 têm presença de fixtures, sem alegar cobertura combinatória exaustiva.
+
+**Exceções aceitas:**
+- W06: base física de fase UNKNOWN; P-A indeterminado sem base comum verificável, R2 aceita pelo modelo menos expressivo. Não é equivalência positiva nem prova de fase física.
+- W07: relação B/C UNKNOWN; P-A indeterminado sem relação par-a-par, R2 avança no fixture. Não é equivalência positiva nem prova de ordem física.
+
+Os dois casos e seus controles permanecem replayáveis e não são removidos do corpus. A aceitação é específica desses fixtures/limites; qualquer nova divergência não listada é FAIL/BLOCKED até análise.
+
+**Autorização:** P-D/P-E podem iniciar sobre o corpus congelado, mantendo a mesma semântica observável P-A, as exceções, o estado sem mutação e os digests. Não podem alterar R1/R2/P-A congelado. R3 continua aberto até comparação P-A/P-D/P-E, análise de custo e revisão R4; R5 segue obrigatório antes de produção.
